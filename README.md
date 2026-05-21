@@ -4,13 +4,13 @@
 
 ## المستودع
 
-- HTTPS: `https://github.com/zernanapid2/drosi2.git`
-- SSH: `git@github.com:zernanapid2/drosi2.git`
+- HTTPS: `https://github.com/yezensyria/drosi2.git`
+- SSH: `git@github.com:yezensyria/drosi2.git`
 
 ## التشغيل محلياً
 
 ```bash
-git clone https://github.com/zernanapid2/drosi2.git
+git clone https://github.com/yezensyria/drosi2.git
 cd drosi2
 cp .env.example .env.local
 ```
@@ -33,18 +33,19 @@ npm run dev
 
 تفاصيل إضافية: [`docs/DATABASE.md`](docs/DATABASE.md).
 
-## رفع الكود إلى GitHub (`zernanapid2/drosi2`)
+## رفع الكود إلى GitHub (`yezensyria/drosi2`)
 
-1. أنشئ المستودع **`drosi2`** تحت حساب **zernanapid2** (يفضّل بدون README أولياً).
-2. من مجلد المشروع:
+الموقع الرسمي للمستودع: **`https://github.com/yezensyria/drosi2`**.
+
+1. من مجلد المشروع:
    ```bash
-   git remote add origin https://github.com/zernanapid2/drosi2.git
+   git remote add origin https://github.com/yezensyria/drosi2.git
    git branch -M main
    git push -u origin main
    ```
-   أو بـ SSH:
+2. أو بـ SSH:
    ```bash
-   git remote set-url origin git@github.com:zernanapid2/drosi2.git
+   git remote set-url origin git@github.com:yezensyria/drosi2.git
    git push -u origin main
    ```
-3. إذا ظهر **403** أو **Permission denied** فأنت تدفع بحساب آخر (مثلاً بيانات **Windows Credential Manager** لـ GitHub). إمّا تسجّل الدخول بحساب **zernanapid2**، أو تستخدم **Personal Access Token** من `zernanapid2` ككلمة مرور مع HTTPS، أو تضيف حسابك الحالي كـ **Collaborator** على المستودع الخاص.
+3. إذا ظهر **403** فتحقق من تسجيل الدخول (`gh auth login`) أو من بيانات اعتماد Git لـ GitHub.
