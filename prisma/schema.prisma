@@ -1,0 +1,20 @@
+// Prisma 5: عميل PostgreSQL تقليدي — يكفي تعيين DATABASE_URL في البيئة (مثلاً Neon أو Supabase).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// مستخدم التطبيق: بريد + كلمة مرور مشفّرة + مصفوفة الدروس كـ JSON (متوافق مع واجهة التطبيق الحالية)
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  lessons      Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
