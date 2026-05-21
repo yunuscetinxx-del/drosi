@@ -12,7 +12,7 @@
 
 أي **PostgreSQL 14+** يعمل طالما أن سلسلة الاتصال متوفرة في `DATABASE_URL`.
 
-## ربط Supabase (مشروع GitHub `drosi`)
+## ربط Supabase (مشروع GitHub `drosi2`)
 
 1. في [Supabase Dashboard](https://supabase.com/dashboard) أنشئ مشروعاً جديداً (أو استخدم مشروعاً قائماً).
 2. من القائمة: **Project Settings → Database**.
