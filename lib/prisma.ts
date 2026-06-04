@@ -13,40 +13,31 @@ function createPrismaClient(databaseUrl: string): PrismaClient {
   })
 }
 
+/**
+ * يُرجع client واحداً محفوظاً عالمياً (singleton).
+ * لا يُستدعى عند تحميل الوحدة — فقط عند أول وصول فعلي عبر Proxy —
+ * مما يمنع فشل البناء على Railway حين لا تكون DATABASE_URL متاحة.
+ */
 function getPrismaClient(): PrismaClient {
   const databaseUrl = resolveDatabaseUrl()
 
   if (
-    process.env.NODE_ENV !== "production" &&
     globalForPrisma.prisma &&
     globalForPrisma.prismaDatabaseUrl === databaseUrl
   ) {
     return globalForPrisma.prisma
   }
 
-  if (
-    process.env.NODE_ENV !== "production" &&
-    globalForPrisma.prisma &&
-    globalForPrisma.prismaDatabaseUrl !== databaseUrl
-  ) {
+  if (globalForPrisma.prisma && globalForPrisma.prismaDatabaseUrl !== databaseUrl) {
     void globalForPrisma.prisma.$disconnect()
   }
 
   const client = createPrismaClient(databaseUrl)
-
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = client
-    globalForPrisma.prismaDatabaseUrl = databaseUrl
-  }
-
+  globalForPrisma.prisma = client
+  globalForPrisma.prismaDatabaseUrl = databaseUrl
   return client
 }
 
-/**
- * Lazy proxy: لا يُنشئ اتصالاً بقاعدة البيانات عند تحميل الوحدة (module evaluation)،
- * بل فقط عند أول استخدام فعلي. هذا يمنع فشل البناء على Railway عندما
- * لا تكون DATABASE_URL متاحة في مرحلة البناء الساكن.
- */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     if (prop === "then") return undefined
