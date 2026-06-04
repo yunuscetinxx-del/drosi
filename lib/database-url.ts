@@ -25,6 +25,13 @@ export function resolveDatabaseUrl(): string {
     return direct
   }
 
+  // أثناء مرحلة البناء الساكن (next build) لا يوجد اتصال بقاعدة بيانات؛
+  // نُرجع رابطاً وهمياً ليكتمل البناء دون فشل. الخطأ سيظهر فقط عند استخدام
+  // prisma فعلياً في وقت التشغيل (runtime) إن لم تكن DATABASE_URL مضبوطة.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+  }
+
   throw new Error(
     "Missing database connection. Set SUPABASE_DB_PASSWORD or DATABASE_URL in .env"
   )

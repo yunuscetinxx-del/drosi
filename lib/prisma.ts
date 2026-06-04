@@ -42,4 +42,14 @@ function getPrismaClient(): PrismaClient {
   return client
 }
 
-export const prisma = getPrismaClient()
+/**
+ * Lazy proxy: لا يُنشئ اتصالاً بقاعدة البيانات عند تحميل الوحدة (module evaluation)،
+ * بل فقط عند أول استخدام فعلي. هذا يمنع فشل البناء على Railway عندما
+ * لا تكون DATABASE_URL متاحة في مرحلة البناء الساكن.
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    if (prop === "then") return undefined
+    return Reflect.get(getPrismaClient(), prop)
+  },
+})
