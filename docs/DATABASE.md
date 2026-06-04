@@ -29,6 +29,24 @@
 
 بعدها ادفع الكود إلى GitHub ثم اربط الاستضافة بالمستودع واضبط المتغيرات هناك كما في `.env.example`.
 
+## عميل Supabase في الكود
+
+بعد ضبط `NEXT_PUBLIC_SUPABASE_URL` و`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (أو `NEXT_PUBLIC_SUPABASE_ANON_KEY`):
+
+- **من المتصفح (Client Component):** `import { createSupabaseBrowserClient } from "@/lib/supabase/browser"`
+- **من الخادم (Route Handler / Server Action / RSC):** `import { createSupabaseServerClient } from "@/lib/supabase/server"` ثم `const supabase = await createSupabaseServerClient()`
+
+المصادقة الحالية للتطبيق (JWT + Prisma) تبقى كما هي؛ Supabase جاهز لاستخدامه لاحقاً (مثلاً **Storage**، **Realtime**، أو **Auth** إن رغبت بالهجرة).
+
+## حساب المدير (تلقائي)
+
+في `.env` أو `.env.local` عيّن (اختياري):
+
+- `ADMIN_EMAIL` — بريد المدير (مخصّص له، لا تشاركه مع مستخدم عادي).
+- `ADMIN_PASSWORD` — **8 أحرف على الأقل**.
+
+عند كل تشغيل للخادم (`next dev` / `next start`) يُنشَأ المستخدم إن لم يوجد، أو تُحدَّث كلمة مرور المدير إن كان الحساب موجوداً و`isAdmin=true` مسبقاً. بعدها سجّل الدخول من صفحة `/login` بنفس البريد وكلمة المرور. يظهر شارة **مدير** في الواجهة.
+
 ## الإعداد السريع
 
 1. انسخ البيئة:

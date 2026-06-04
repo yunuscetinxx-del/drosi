@@ -1,0 +1,157 @@
+.word-editor-shell {
+  --word-sheet-bg: #ffffff;
+  --word-sheet-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --word-text-color: #171717;
+}
+
+.dark .word-editor-shell {
+  /* ورقة Word تبقى بيضاء حتى في الوضع الداكن */
+  --word-sheet-bg: #ffffff;
+  --word-sheet-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --word-text-color: #171717;
+}
+
+.word-editor-canvas {
+  background:
+    radial-gradient(circle at 1px 1px, hsl(var(--border) / 0.35) 1px, transparent 0) 0 0 / 20px 20px,
+    hsl(var(--muted) / 0.45);
+}
+
+.word-editor-sheet {
+  width: min(100%, 816px);
+  min-height: min(1056px, 100%);
+  margin-inline: auto;
+  background: var(--word-sheet-bg);
+  box-shadow: var(--word-sheet-shadow);
+  padding: 72px 64px;
+  border-radius: 2px;
+}
+
+.word-editor-content .tiptap {
+  outline: none;
+  min-height: 720px;
+  color: var(--word-text-color, #171717);
+  font-size: 11pt;
+  line-height: 1.65;
+  caret-color: var(--word-text-color, #171717);
+}
+
+/* النص الجديد بدون لون مخصص يظهر أسود على الورقة البيضاء */
+.word-editor-content .tiptap p,
+.word-editor-content .tiptap h1,
+.word-editor-content .tiptap h2,
+.word-editor-content .tiptap h3,
+.word-editor-content .tiptap li,
+.word-editor-content .tiptap td,
+.word-editor-content .tiptap th {
+  color: var(--word-text-color, #171717);
+}
+
+.word-editor-content .tiptap > * + * {
+  margin-top: 0.65em;
+}
+
+.word-editor-content .tiptap h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 0;
+  color: var(--word-text-color, #171717);
+}
+
+.word-editor-content .tiptap h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.word-editor-content .tiptap h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.word-editor-content .tiptap p.is-editor-empty:first-child::before {
+  color: #737373;
+  content: attr(data-placeholder);
+  float: inline-start;
+  height: 0;
+  pointer-events: none;
+}
+
+.word-editor-content .tiptap ul,
+.word-editor-content .tiptap ol {
+  padding-inline-start: 1.5rem;
+}
+
+.word-editor-content .tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+}
+
+.word-editor-content .tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.word-editor-content .tiptap ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+}
+
+.word-editor-content .tiptap ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+
+.word-editor-content .tiptap blockquote {
+  border-inline-start: 3px solid hsl(var(--primary));
+  padding-inline-start: 1rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.word-editor-content .tiptap hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 1.5rem 0;
+}
+
+.word-editor-content .tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+}
+
+.word-editor-content .tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.word-editor-content .tiptap th,
+.word-editor-content .tiptap td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.65rem;
+  vertical-align: top;
+}
+
+.word-editor-content .tiptap th {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+}
+
+.word-editor-content .tiptap mark {
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.word-editor-content .tiptap a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.word-toolbar-btn[data-active="true"] {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}

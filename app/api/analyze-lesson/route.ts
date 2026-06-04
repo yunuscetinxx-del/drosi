@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-
-export const MODEL_OPTIONS = {
-  "x-ai/grok-3-mini": { name: "Grok 3 Mini", description: "سريع وقوي للتحليل التعليمي" },
-  "nvidia/llama-nemotron-embed-vl-1b-v2:free": { name: "Llama Nemotron", description: "نموذج متقدم للفهم العميق" },
-} as const
-
-type ModelKey = keyof typeof MODEL_OPTIONS
+import { AI_MODEL, AI_MODEL_CONFIG } from "@/lib/ai-model"
+import { formatOpenRouterError } from "@/lib/openrouter-errors"
 
 export async function POST(req: NextRequest) {
-  const { lesson, model = "x-ai/grok-3-mini" } = await req.json()
+  const { lesson } = await req.json()
 
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: "OPENROUTER_API_KEY غير مضبوط" }, { status: 500 })
-  }
-
-  const selectedModel = model as ModelKey
-  if (!(selectedModel in MODEL_OPTIONS)) {
-    return NextResponse.json({ error: "نموذج غير صحيح" }, { status: 400 })
   }
 
   const prompt = `أنت مساعد تعليمي متخصص. قم بتحليل الدرس التالي وأعطِ تحليلاً شاملاً باللغة العربية.
@@ -44,13 +34,6 @@ ${lesson.keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}
   "summary": "ملخص تحليلي شامل للدرس في جملتين أو ثلاث"
 }`
 
-  const modelConfig: Record<ModelKey, { temperature: number; maxTokens: number }> = {
-    "x-ai/grok-3-mini": { temperature: 0.7, maxTokens: 1200 },
-    "nvidia/llama-nemotron-embed-vl-1b-v2:free": { temperature: 0.8, maxTokens: 1500 },
-  }
-
-  const config = modelConfig[selectedModel]
-
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -61,17 +44,20 @@ ${lesson.keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}
         "X-Title": "Durusi - Lesson Manager",
       },
       body: JSON.stringify({
-        model: selectedModel,
+        model: AI_MODEL,
         messages: [{ role: "user", content: prompt }],
-        temperature: config.temperature,
-        max_tokens: config.maxTokens,
+        temperature: AI_MODEL_CONFIG.temperature,
+        max_tokens: AI_MODEL_CONFIG.maxTokensLesson,
       }),
     })
 
     if (!response.ok) {
       const err = await response.text()
       console.log("[v0] OpenRouter error:", err)
-      return NextResponse.json({ error: "خطأ من OpenRouter: " + err }, { status: 500 })
+      return NextResponse.json(
+        { error: formatOpenRouterError(err, response.status) },
+        { status: response.status === 429 ? 429 : 500 }
+      )
     }
 
     const data = await response.json()
@@ -79,7 +65,6 @@ ${lesson.keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}
 
     let analysis
     try {
-      // Strip any markdown code fences if model wraps output
       const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
       analysis = JSON.parse(cleaned)
     } catch {

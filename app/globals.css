@@ -119,7 +119,41 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    color-scheme: dark;
+  }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* أيقونات التقويم/الساعة في حقول date و time — افتراضياً سوداء ولا تظهر على الخلفية الداكنة */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    color-scheme: dark;
+    color: var(--foreground);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
+  input[type="week"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.9;
+    filter: invert(1) brightness(1.15);
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit {
+    color: var(--foreground);
+  }
+
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    color: var(--foreground);
   }
 }

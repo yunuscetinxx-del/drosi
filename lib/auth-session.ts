@@ -16,8 +16,12 @@ export function getAuthSecretKey(): Uint8Array {
   return new TextEncoder().encode(s)
 }
 
-export async function createSessionToken(userId: string, email: string): Promise<string> {
-  return new jose.SignJWT({ email })
+export async function createSessionToken(
+  userId: string,
+  email: string,
+  isAdmin: boolean
+): Promise<string> {
+  return new jose.SignJWT({ email, isAdmin })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -27,13 +31,14 @@ export async function createSessionToken(userId: string, email: string): Promise
 
 export async function verifySessionToken(
   token: string
-): Promise<{ userId: string; email: string } | null> {
+): Promise<{ userId: string; email: string; isAdmin: boolean } | null> {
   try {
     const { payload } = await jose.jwtVerify(token, getAuthSecretKey())
     const userId = payload.sub
     const email = typeof payload.email === "string" ? payload.email : undefined
     if (!userId || !email) return null
-    return { userId, email }
+    const isAdmin = payload.isAdmin === true
+    return { userId, email, isAdmin }
   } catch {
     return null
   }

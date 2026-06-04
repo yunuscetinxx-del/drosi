@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Lesson, ImageAnnotation, ImageAIAnalysis } from "@/types/lesson"
+import { useState, useEffect, useRef } from "react"
+import { Lesson, ImageAnnotation, ImageAIAnalysis, MindMapNode } from "@/types/lesson"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,23 +10,28 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ImageUploader } from "@/components/image-uploader"
-import { MindMap } from "@/components/mind-map"
 import { AIAnalysis } from "@/components/ai-analysis"
-import { MindMapNode } from "@/types/lesson"
+import { WordEditor } from "@/components/word-editor"
+import { MindMapsEditor, type MindMapsEditorHandle } from "@/components/mind-maps-editor"
 import {
   FileText,
+  FileType,
   Lightbulb,
   StickyNote,
   Image as ImageIcon,
   Network,
-  Save,
   Plus,
   Trash2,
   ChevronRight,
   Sparkles,
-  Check,
-  AlertCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react"
+import { useTranslations } from "@/components/locale-provider"
+import { cn } from "@/lib/utils"
+import { readLessonTab, writeLessonTab, type LessonTab } from "@/lib/app-navigation"
+
+const SECTIONS_SIDEBAR_KEY = "durusi_sections_sidebar_open"
 
 interface LessonDetailProps {
   lesson: Lesson
@@ -37,11 +42,8 @@ interface LessonDetailProps {
   onUpdateImageAnnotation: (lessonId: string, imageId: string, annotationId: string, updates: Partial<ImageAnnotation>) => void
   onRemoveImageAnnotation: (lessonId: string, imageId: string, annotationId: string) => void
   onSetImageAIAnalysis: (lessonId: string, imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
-  onAddMindMapNode: (lessonId: string, node: Omit<MindMapNode, "id">) => void
-  onUpdateMindMapNode: (lessonId: string, nodeId: string, updates: Partial<MindMapNode>) => void
-  onDeleteMindMapNode: (lessonId: string, nodeId: string) => void
-  onSaveMindMap: (lessonId: string) => void
   onClose: () => void
+  readOnly?: boolean
 }
 
 export function LessonDetail({
@@ -53,56 +55,64 @@ export function LessonDetail({
   onUpdateImageAnnotation,
   onRemoveImageAnnotation,
   onSetImageAIAnalysis,
-  onAddMindMapNode,
-  onUpdateMindMapNode,
-  onDeleteMindMapNode,
-  onSaveMindMap,
   onClose,
+  readOnly = false,
 }: LessonDetailProps) {
-  const [editing, setEditing] = useState(false)
-  const [editedLesson, setEditedLesson] = useState(lesson)
+  const { t, dir, isRtl } = useTranslations()
+  const mindMapsEditorRef = useRef<MindMapsEditorHandle>(null)
+  const mindMaps = lesson.mindMaps ?? []
   const [newKeyPoint, setNewKeyPoint] = useState("")
-  const [selectedModel, setSelectedModel] = useState<string>("x-ai/grok-3-mini")
+  const [sectionsOpen, setSectionsOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState<LessonTab>("details")
 
-  const handleSave = () => {
-    onUpdate(lesson.id, {
-      title: editedLesson.title,
-      subject: editedLesson.subject,
-      description: editedLesson.description,
-      summary: editedLesson.summary,
-      keyPoints: editedLesson.keyPoints,
-      /** الملاحظات تُحدَّث مباشرة من تبويب الملاحظات؛ نقرأ آخر قيمة من الدرس */
-      notes: lesson.notes,
-    })
-    setEditing(false)
+  useEffect(() => {
+    setActiveTab(readLessonTab(lesson.id))
+  }, [lesson.id])
+
+  const handleTabChange = (value: string) => {
+    const tab = value as LessonTab
+    setActiveTab(tab)
+    writeLessonTab(lesson.id, tab)
   }
 
-  const addKeyPoint = () => {
-    if (newKeyPoint.trim()) {
-      setEditedLesson({
-        ...editedLesson,
-        keyPoints: [...editedLesson.keyPoints, newKeyPoint.trim()],
-      })
-      setNewKeyPoint("")
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(SECTIONS_SIDEBAR_KEY)
+      if (v === "0") setSectionsOpen(false)
+      if (v === "1") setSectionsOpen(true)
+    } catch {
+      /* ignore */
     }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SECTIONS_SIDEBAR_KEY, sectionsOpen ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }, [sectionsOpen])
+
+  const addKeyPoint = () => {
+    if (!newKeyPoint.trim()) return
+    onUpdate(lesson.id, { keyPoints: [...lesson.keyPoints, newKeyPoint.trim()] })
+    setNewKeyPoint("")
   }
 
   const removeKeyPoint = (index: number) => {
-    setEditedLesson({
-      ...editedLesson,
-      keyPoints: editedLesson.keyPoints.filter((_, i) => i !== index),
+    onUpdate(lesson.id, {
+      keyPoints: lesson.keyPoints.filter((_, i) => i !== index),
     })
   }
 
   const updateKeyPoint = (index: number, text: string) => {
-    setEditedLesson({
-      ...editedLesson,
-      keyPoints: editedLesson.keyPoints.map((p, i) => (i === index ? text : p)),
+    onUpdate(lesson.id, {
+      keyPoints: lesson.keyPoints.map((p, i) => (i === index ? text : p)),
     })
   }
 
   const handleAddMindMapNodes = (nodes: Omit<MindMapNode, "id">[]) => {
-    nodes.forEach((node) => onAddMindMapNode(lesson.id, node))
+    mindMapsEditorRef.current?.addNodesToActive(nodes)
   }
 
   const handleAddToNotes = (text: string) => {
@@ -114,83 +124,59 @@ export function LessonDetail({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onClose} className="lg:hidden">
-            <ChevronRight className="w-5 h-5" />
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 lg:hidden" onClick={onClose}>
+            <ChevronRight className="h-4 w-4" />
           </Button>
-          <div>
-            <h2 className="text-xl font-bold">{lesson.title}</h2>
-            <Badge variant="secondary" className="mt-1">
-              {lesson.subject}
-            </Badge>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {editing ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setEditedLesson(lesson)
-                  setEditing(false)
-                }}
-              >
-                إلغاء
-              </Button>
-              <Button size="sm" onClick={handleSave}>
-                <Save className="w-4 h-4 ml-2" />
-                حفظ
-              </Button>
-            </>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setEditedLesson(lesson)
-                setEditing(true)
-              }}
-            >
-              تعديل
-            </Button>
-          )}
+          <h2 className="min-w-0 truncate text-base font-bold sm:text-lg">{lesson.title}</h2>
+          <Badge variant="secondary" className="shrink-0 text-xs">
+            {lesson.subject}
+          </Badge>
         </div>
       </div>
 
       <Tabs
-        defaultValue="details"
+        value={activeTab}
+        onValueChange={handleTabChange}
         orientation="vertical"
-        dir="ltr"
+        dir={isRtl ? "ltr" : "rtl"}
         className="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden"
       >
-        <aside
-          aria-label="أقسام الدرس"
-          dir="rtl"
-          className="z-20 flex w-14 shrink-0 flex-col border-e border-border bg-muted/35 backdrop-blur-sm supports-[backdrop-filter]:bg-muted/25 sm:w-52"
+        <div
+          className={cn(
+            "relative z-20 shrink-0 overflow-hidden border-e border-border bg-muted/35 backdrop-blur-sm transition-[width] duration-300 ease-in-out supports-[backdrop-filter]:bg-muted/25",
+            sectionsOpen ? "w-14 sm:w-52" : "w-0 border-e-0"
+          )}
         >
-          <TabsList className="flex h-full min-h-0 w-full flex-col items-stretch gap-0.5 rounded-none border-0 bg-transparent p-2 sm:gap-1 sm:p-2.5">
+          <aside
+            id="lesson-sections-sidebar"
+            aria-label={t("lesson.sectionsLabel")}
+            aria-hidden={!sectionsOpen}
+            dir={dir}
+            className="flex h-full w-14 shrink-0 flex-col sm:w-52"
+          >
+            <TabsList className="flex h-full min-h-0 w-full flex-col items-stretch gap-0.5 rounded-none border-0 bg-transparent p-2 sm:gap-1 sm:p-2.5">
             <TabsTrigger
               value="details"
               className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
             >
               <FileText className="size-4 shrink-0 opacity-80 sm:size-[1.05rem]" />
-              <span className="min-w-0 flex-1 truncate leading-snug">التفاصيل</span>
+              <span className="min-w-0 flex-1 truncate leading-snug">{t("lesson.tabDetails")}</span>
             </TabsTrigger>
             <TabsTrigger
               value="keypoints"
               className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
             >
               <Lightbulb className="size-4 shrink-0 opacity-80 sm:size-[1.05rem]" />
-              <span className="min-w-0 flex-1 truncate leading-snug">النقاط</span>
+              <span className="min-w-0 flex-1 truncate leading-snug">{t("lesson.tabKeyPoints")}</span>
             </TabsTrigger>
             <TabsTrigger
               value="notes"
               className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
             >
               <StickyNote className="size-4 shrink-0 opacity-80 sm:size-[1.05rem]" />
-              <span className="min-w-0 flex-1 truncate leading-snug">الملاحظات</span>
+              <span className="min-w-0 flex-1 truncate leading-snug">{t("lesson.tabNotes")}</span>
             </TabsTrigger>
             <TabsTrigger
               value="images"
@@ -198,7 +184,7 @@ export function LessonDetail({
             >
               <ImageIcon className="size-4 shrink-0 opacity-80 sm:size-[1.05rem]" />
               <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate leading-snug">
-                <span className="truncate">الصور</span>
+                <span className="truncate">{t("lesson.tabImages")}</span>
                 {lesson.images.length > 0 && (
                   <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] tabular-nums sm:text-xs">
                     {lesson.images.length}
@@ -207,16 +193,32 @@ export function LessonDetail({
               </span>
             </TabsTrigger>
             <TabsTrigger
+              value="word"
+              className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
+            >
+              <FileType className="size-4 shrink-0 text-blue-500 opacity-90 sm:size-[1.05rem]" />
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate leading-snug">
+                <span className="truncate">{t("lesson.tabWord")}</span>
+                {(lesson.wordPages?.length ?? 0) > 0 && (
+                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] tabular-nums sm:text-xs">
+                    {(lesson.wordPages ?? []).length}
+                  </Badge>
+                )}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger
               value="mindmap"
               className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
             >
-              <span className="relative inline-flex shrink-0">
-                <Network className="size-4 opacity-80 sm:size-[1.05rem]" />
-                {!lesson.mindMapSaved && lesson.mindMapNodes.length > 0 && (
-                  <span className="absolute -start-0.5 -top-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-muted/35 sm:-start-1" />
+              <Network className="size-4 shrink-0 opacity-80 sm:size-[1.05rem]" />
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate leading-snug">
+                <span className="truncate">{t("lesson.tabMindMap")}</span>
+                {mindMaps.length > 0 && (
+                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] tabular-nums sm:text-xs">
+                    {mindMaps.length}
+                  </Badge>
                 )}
               </span>
-              <span className="min-w-0 flex-1 truncate leading-snug">الخريطة</span>
             </TabsTrigger>
             <TabsTrigger
               value="ai"
@@ -224,44 +226,65 @@ export function LessonDetail({
             >
               <Sparkles className="size-4 shrink-0 text-violet-400 sm:size-[1.05rem]" />
               <span className="min-w-0 flex-1 truncate leading-snug text-violet-300 sm:text-violet-400">
-                تحليل AI
+                {t("lesson.tabAi")}
               </span>
             </TabsTrigger>
           </TabsList>
-        </aside>
+          </aside>
+        </div>
 
-        <div dir="rtl" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="relative z-30 flex w-0 shrink-0 self-stretch pointer-events-none">
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="pointer-events-auto absolute top-1/2 left-1/2 h-11 w-7 -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-card shadow-md"
+            aria-expanded={sectionsOpen}
+            aria-controls="lesson-sections-sidebar"
+            title={sectionsOpen ? t("lesson.hideSections") : t("lesson.showSections")}
+            onClick={() => setSectionsOpen((v) => !v)}
+          >
+            {sectionsOpen ? (
+              <PanelLeftClose className="h-4 w-4" aria-hidden />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
+        </div>
+
+        <div dir={dir} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {/* Details */}
           <TabsContent value="details" className="mt-0 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-4 outline-none data-[state=inactive]:hidden">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-lg">معلومات الدرس</CardTitle>
+                <CardTitle className="text-lg">{t("lesson.lessonInfo")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {editing ? (
+                {!readOnly ? (
                   <>
                     <div className="space-y-2">
-                      <Label>عنوان الدرس</Label>
+                      <Label>{t("lesson.lessonTitle")}</Label>
                       <Input
-                        value={editedLesson.title}
-                        onChange={(e) => setEditedLesson({ ...editedLesson, title: e.target.value })}
+                        value={lesson.title}
+                        onChange={(e) => onUpdate(lesson.id, { title: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>المادة</Label>
+                      <Label>{t("lesson.subject")}</Label>
                       <Input
-                        value={editedLesson.subject}
-                        onChange={(e) => setEditedLesson({ ...editedLesson, subject: e.target.value })}
+                        value={lesson.subject}
+                        onChange={(e) => onUpdate(lesson.id, { subject: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>الوصف</Label>
+                      <Label>{t("lesson.description")}</Label>
                       <Textarea
-                        value={editedLesson.description}
-                        onChange={(e) => setEditedLesson({ ...editedLesson, description: e.target.value })}
+                        value={lesson.description}
+                        onChange={(e) => onUpdate(lesson.id, { description: e.target.value })}
                         rows={3}
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">{t("lesson.detailsEditHint")}</p>
                   </>
                 ) : (
                   <p className="text-muted-foreground">{lesson.description}</p>
@@ -271,13 +294,13 @@ export function LessonDetail({
 
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-lg">الملخص</CardTitle>
+                <CardTitle className="text-lg">{t("lesson.summary")}</CardTitle>
               </CardHeader>
               <CardContent>
-                {editing ? (
+                {!readOnly ? (
                   <Textarea
-                    value={editedLesson.summary}
-                    onChange={(e) => setEditedLesson({ ...editedLesson, summary: e.target.value })}
+                    value={lesson.summary}
+                    onChange={(e) => onUpdate(lesson.id, { summary: e.target.value })}
                     rows={4}
                   />
                 ) : (
@@ -293,17 +316,19 @@ export function LessonDetail({
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Lightbulb className="w-5 h-5 text-primary" />
-                  النقاط الرئيسية
+                  {t("lesson.keyPointsTitle")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {editing && (
+                {!readOnly && (
                   <div className="flex gap-2">
                     <Input
                       value={newKeyPoint}
                       onChange={(e) => setNewKeyPoint(e.target.value)}
-                      placeholder="أضف نقطة رئيسية..."
-                      onKeyDown={(e) => { if (e.key === "Enter") addKeyPoint() }}
+                      placeholder={t("lesson.addKeyPointPlaceholder")}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") addKeyPoint()
+                      }}
                     />
                     <Button onClick={addKeyPoint}>
                       <Plus className="w-4 h-4" />
@@ -311,20 +336,20 @@ export function LessonDetail({
                   </div>
                 )}
                 <ul className="space-y-3">
-                  {(editing ? editedLesson.keyPoints : lesson.keyPoints).map((point, index) => (
+                  {lesson.keyPoints.map((point, index) => (
                     <li key={index} className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg">
                       <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                      {editing ? (
+                      {!readOnly ? (
                         <Input
                           value={point}
                           onChange={(e) => updateKeyPoint(index, e.target.value)}
                           className="flex-1 text-sm h-9"
-                          aria-label={`نقطة رئيسية ${index + 1}`}
+                          aria-label={t("lesson.keyPointAria", { index: index + 1 })}
                         />
                       ) : (
                         <span className="flex-1 text-sm">{point}</span>
                       )}
-                      {editing && (
+                      {!readOnly && (
                         <Button variant="ghost" size="icon" onClick={() => removeKeyPoint(index)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
@@ -342,19 +367,21 @@ export function LessonDetail({
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <StickyNote className="w-5 h-5 text-primary" />
-                  الملاحظات الشخصية
+                  {t("lesson.personalNotes")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  يمكنك تعديل الملاحظات في أي وقت؛ تُحفظ مع الدرس مباشرة.
+                  {t("lesson.notesHint")}
                 </p>
                 <Textarea
                   value={lesson.notes}
                   onChange={(e) => onUpdate(lesson.id, { notes: e.target.value })}
-                  placeholder="أضف ملاحظاتك هنا..."
+                  placeholder={t("lesson.notesPlaceholder")}
                   rows={10}
                   className="min-h-[200px]"
+                  readOnly={readOnly}
+                  disabled={readOnly}
                 />
               </CardContent>
             </Card>
@@ -366,12 +393,13 @@ export function LessonDetail({
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-primary" />
-                  صور الدرس
+                  {t("lesson.lessonImages")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ImageUploader
                   images={lesson.images}
+                  readOnly={readOnly}
                   onAddImage={(url) => onAddImage(lesson.id, url)}
                   onRemoveImage={(imageId) => onRemoveImage(lesson.id, imageId)}
                   onAddAnnotation={(imageId, annotation) =>
@@ -386,11 +414,23 @@ export function LessonDetail({
                   onSetAIAnalysis={(imageId, analysis) =>
                     onSetImageAIAnalysis(lesson.id, imageId, analysis)
                   }
-                  onAddToNotes={handleAddToNotes}
-                  selectedModel={selectedModel}
+                  onAddToNotes={readOnly ? () => {} : handleAddToNotes}
                 />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Word */}
+          <TabsContent
+            value="word"
+            className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 outline-none data-[state=inactive]:hidden"
+          >
+            <WordEditor
+              pages={lesson.wordPages ?? []}
+              images={lesson.images}
+              readOnly={readOnly}
+              onPagesChange={(wordPages) => onUpdate(lesson.id, { wordPages })}
+            />
           </TabsContent>
 
           {/* Mind Map */}
@@ -398,45 +438,29 @@ export function LessonDetail({
             value="mindmap"
             className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 outline-none data-[state=inactive]:hidden sm:p-0"
           >
-            <Card className="flex min-h-0 flex-1 flex-col gap-0 border-0 bg-card py-0 shadow-none">
-              <CardHeader className="shrink-0 space-y-0 border-b border-border px-4 py-3 pb-3">
-                <CardTitle className="flex items-center justify-between text-lg">
-                  <span className="flex items-center gap-2">
-                    <Network className="h-5 w-5 text-primary" />
-                    الخريطة الذهنية
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {lesson.mindMapSaved ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <Check className="h-3 w-3" />
-                        محفوظة
-                      </Badge>
-                    ) : lesson.mindMapNodes.length > 0 ? (
-                      <Badge variant="outline" className="gap-1 border-amber-500 text-amber-500">
-                        <AlertCircle className="h-3 w-3" />
-                        تغييرات غير محفوظة
-                      </Badge>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      onClick={() => onSaveMindMap(lesson.id)}
-                      disabled={lesson.mindMapSaved}
-                    >
-                      <Save className="ml-1 h-4 w-4" />
-                      حفظ الخريطة
-                    </Button>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3 pt-0">
-                <MindMap
-                  nodes={lesson.mindMapNodes}
-                  onAddNode={(node) => onAddMindMapNode(lesson.id, node)}
-                  onUpdateNode={(nodeId, updates) => onUpdateMindMapNode(lesson.id, nodeId, updates)}
-                  onDeleteNode={(nodeId) => onDeleteMindMapNode(lesson.id, nodeId)}
-                />
-              </CardContent>
-            </Card>
+            <MindMapsEditor
+              ref={mindMapsEditorRef}
+              lessonId={lesson.id}
+              lessonTitle={lesson.title}
+              lessonSubject={lesson.subject}
+              keyPoints={lesson.keyPoints}
+              summary={lesson.summary}
+              images={lesson.images}
+              wordPages={lesson.wordPages ?? []}
+              maps={mindMaps}
+              folders={lesson.mindMapFolders ?? []}
+              readOnly={readOnly}
+              onMapsChange={(next) => onUpdate(lesson.id, { mindMaps: next })}
+              onFoldersChange={
+                readOnly
+                  ? undefined
+                  : (mindMapFolders) => onUpdate(lesson.id, { mindMapFolders })
+              }
+              onOpenLessonTab={(tab) => {
+                setActiveTab(tab)
+                writeLessonTab(lesson.id, tab)
+              }}
+            />
           </TabsContent>
 
           {/* AI Analysis */}
@@ -446,7 +470,26 @@ export function LessonDetail({
           >
             <AIAnalysis
               lesson={lesson}
+              readOnly={readOnly}
               onAddMindMapNodes={handleAddMindMapNodes}
+              onSetImageAIAnalysis={(imageId, analysis) =>
+                onSetImageAIAnalysis(lesson.id, imageId, analysis)
+              }
+              onAddImageWithAnalysis={(url, analysis) => {
+                const id = Math.random().toString(36).substring(2, 11)
+                onUpdate(lesson.id, {
+                  images: [
+                    ...lesson.images,
+                    {
+                      id,
+                      url,
+                      annotations: [],
+                      aiAnalysis: { ...analysis, analyzedAt: new Date() },
+                    },
+                  ],
+                })
+              }}
+              onAddToNotes={readOnly ? () => {} : handleAddToNotes}
             />
           </TabsContent>
         </div>

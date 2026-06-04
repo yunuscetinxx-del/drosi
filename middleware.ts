@@ -3,10 +3,21 @@ import type { NextRequest } from "next/server"
 import { AUTH_SESSION_COOKIE } from "@/lib/auth-constants"
 import { verifySessionToken } from "@/lib/auth-session"
 
+function tokenFromRequest(request: NextRequest): string | null {
+  const auth = request.headers.get("authorization")
+  if (auth) {
+    const m = auth.match(/^Bearer\s+(.+)$/i)
+    if (m?.[1]) return m[1].trim()
+  }
+  return request.cookies.get(AUTH_SESSION_COOKIE)?.value ?? null
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith("/login")) return NextResponse.next()
+  if (pathname.startsWith("/share/")) return NextResponse.next()
+  if (pathname.startsWith("/api/share/")) return NextResponse.next()
   if (pathname.startsWith("/api/auth")) return NextResponse.next()
   if (pathname.startsWith("/_next")) return NextResponse.next()
   if (pathname === "/favicon.ico") return NextResponse.next()
@@ -15,7 +26,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const token = request.cookies.get(AUTH_SESSION_COOKIE)?.value
+  const token = tokenFromRequest(request)
   if (!token) {
     return rejectUnauthenticated(request)
   }

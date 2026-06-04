@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  X,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -34,24 +33,24 @@ import {
   Eye,
   Edit3,
   StickyNote,
-  Loader2,
-  Brain,
-  Lightbulb,
-  BookOpen,
-  Link2,
+  Tags,
 } from "lucide-react"
+import { ImageAnalysisResults, formatAnalysisForNotes } from "@/components/image-analysis-results"
+import { ImageAiAnalyzeDialog } from "@/components/image-ai-analyze-dialog"
+import { useTranslations } from "@/components/locale-provider"
 
-const HIGHLIGHT_COLORS = [
-  { name: "أصفر", value: "#fef08a", border: "#eab308" },
-  { name: "أخضر", value: "#bbf7d0", border: "#22c55e" },
-  { name: "أزرق", value: "#bfdbfe", border: "#3b82f6" },
-  { name: "وردي", value: "#fbcfe8", border: "#ec4899" },
-  { name: "برتقالي", value: "#fed7aa", border: "#f97316" },
-  { name: "بنفسجي", value: "#ddd6fe", border: "#8b5cf6" },
+const HIGHLIGHT_COLOR_DEFS = [
+  { key: "yellow" as const, value: "#fef08a", border: "#eab308" },
+  { key: "green" as const, value: "#bbf7d0", border: "#22c55e" },
+  { key: "blue" as const, value: "#bfdbfe", border: "#3b82f6" },
+  { key: "pink" as const, value: "#fbcfe8", border: "#ec4899" },
+  { key: "orange" as const, value: "#fed7aa", border: "#f97316" },
+  { key: "purple" as const, value: "#ddd6fe", border: "#8b5cf6" },
 ]
 
 interface ImageEditorProps {
   image: LessonImage
+  readOnly?: boolean
   open: boolean
   onClose: () => void
   onAddAnnotation: (annotation: Omit<ImageAnnotation, "id" | "createdAt">) => void
@@ -59,13 +58,13 @@ interface ImageEditorProps {
   onRemoveAnnotation: (annotationId: string) => void
   onSetAIAnalysis: (analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
   onAddToNotes: (text: string) => void
-  selectedModel: string
 }
 
 type EditorMode = "view" | "highlight" | "annotate"
 
 export function ImageEditor({
   image,
+  readOnly = false,
   open,
   onClose,
   onAddAnnotation,
@@ -73,20 +72,48 @@ export function ImageEditor({
   onRemoveAnnotation,
   onSetAIAnalysis,
   onAddToNotes,
-  selectedModel,
 }: ImageEditorProps) {
+  const { t } = useTranslations()
+  const HIGHLIGHT_COLORS = HIGHLIGHT_COLOR_DEFS.map((color) => ({
+    ...color,
+    name: t(`colors.${color.key}`),
+  }))
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<EditorMode>("view")
   const [zoom, setZoom] = useState(1)
-  const [selectedColor, setSelectedColor] = useState(HIGHLIGHT_COLORS[0])
+  const [selectedColor, setSelectedColor] = useState(HIGHLIGHT_COLOR_DEFS[0])
   const [isDrawing, setIsDrawing] = useState(false)
   const [drawStart, setDrawStart] = useState({ x: 0, y: 0 })
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [selectedAnnotation, setSelectedAnnotation] = useState<ImageAnnotation | null>(null)
+  const [hoveredAnnotation, setHoveredAnnotation] = useState<ImageAnnotation | null>(null)
   const [noteText, setNoteText] = useState("")
-  const [analyzing, setAnalyzing] = useState(false)
+  const [showAllNotes, setShowAllNotes] = useState(false)
+  const [showAiDialog, setShowAiDialog] = useState(false)
   const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0 })
+  const [canvasViewport, setCanvasViewport] = useState({ maxW: 1200, maxH: 720 })
+
+  useEffect(() => {
+    if (readOnly && open) setMode("view")
+  }, [readOnly, open])
+
+  useEffect(() => {
+    if (!open) {
+      setHoveredAnnotation(null)
+      setShowAllNotes(false)
+      return
+    }
+    const updateViewport = () => {
+      setCanvasViewport({
+        maxW: Math.min(window.innerWidth * 0.68, 1600),
+        maxH: Math.min(window.innerHeight * 0.78, 960),
+      })
+    }
+    updateViewport()
+    window.addEventListener("resize", updateViewport)
+    return () => window.removeEventListener("resize", updateViewport)
+  }, [open])
 
   // Load image and set dimensions
   useEffect(() => {
@@ -163,6 +190,27 @@ export function ImageEditor({
     drawCanvas()
   }, [drawCanvas])
 
+  useEffect(() => {
+    if (!hoveredAnnotation) return
+    const updated = image.annotations.find((a) => a.id === hoveredAnnotation.id)
+    if (updated) {
+      setHoveredAnnotation(updated)
+    } else {
+      setHoveredAnnotation(null)
+    }
+  }, [image.annotations, hoveredAnnotation?.id])
+
+  const findAnnotationAt = (coords: { x: number; y: number }) =>
+    [...image.annotations]
+      .reverse()
+      .find(
+        (a) =>
+          coords.x >= a.x &&
+          coords.x <= a.x + a.width &&
+          coords.y >= a.y &&
+          coords.y <= a.y + a.height
+      )
+
   // Mouse handlers
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -177,24 +225,24 @@ export function ImageEditor({
   }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (readOnly && mode !== "view") return
     if (mode === "view") {
-      // Check if clicked on an annotation
       const coords = getCanvasCoords(e)
-      const clicked = image.annotations.find(
-        (a) =>
-          coords.x >= a.x &&
-          coords.x <= a.x + a.width &&
-          coords.y >= a.y &&
-          coords.y <= a.y + a.height
-      )
+      const clicked = findAnnotationAt(coords)
       if (clicked) {
         setSelectedAnnotation(clicked)
         setNoteText(clicked.note)
+        if (!showAllNotes) {
+          setHoveredAnnotation(clicked)
+        }
       } else {
         setSelectedAnnotation(null)
+        setHoveredAnnotation(null)
       }
       return
     }
+
+    if (readOnly) return
 
     if (mode === "highlight" || mode === "annotate") {
       const coords = getCanvasCoords(e)
@@ -205,6 +253,13 @@ export function ImageEditor({
   }
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (mode === "view" && !showAllNotes) {
+      const coords = getCanvasCoords(e)
+      const hovered = findAnnotationAt(coords)
+      setHoveredAnnotation(hovered ?? null)
+      return
+    }
+
     if (!isDrawing || mode === "view") return
     const coords = getCanvasCoords(e)
     setCurrentRect({
@@ -257,7 +312,6 @@ export function ImageEditor({
     if (!selectedAnnotation) return
 
     if (selectedAnnotation.id === "temp") {
-      // New annotation
       onAddAnnotation({
         x: selectedAnnotation.x,
         y: selectedAnnotation.y,
@@ -267,12 +321,12 @@ export function ImageEditor({
         note: noteText,
       })
     } else {
-      // Update existing
       onUpdateAnnotation(selectedAnnotation.id, { note: noteText })
     }
 
     setSelectedAnnotation(null)
     setNoteText("")
+    setHoveredAnnotation(null)
     setMode("view")
   }
 
@@ -282,38 +336,112 @@ export function ImageEditor({
     }
   }
 
-  // AI Analysis
-  const handleAnalyze = async () => {
-    setAnalyzing(true)
-    try {
-      const res = await fetch("/api/analyze-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: image.url, model: selectedModel }),
-      })
-      const data = await res.json()
-      if (data.analysis) {
-        onSetAIAnalysis(data.analysis)
-      }
-    } catch (err) {
-      console.log("[v0] Image analysis error:", err)
-    } finally {
-      setAnalyzing(false)
-    }
-  }
-
-  const maxWidth = 800
-  const maxHeight = 500
+  const maxWidth = canvasViewport.maxW
+  const maxHeight = canvasViewport.maxH
   const scale = Math.min(maxWidth / imgDimensions.width, maxHeight / imgDimensions.height, 1)
   const displayWidth = imgDimensions.width * scale * zoom
   const displayHeight = imgDimensions.height * scale * zoom
+  const canvasDisplayScale = imgDimensions.width ? displayWidth / imgDimensions.width : 1
+  const annotationsWithNotes = image.annotations.filter((a) => a.note.trim())
+
+  const layoutNoteLabels = () => {
+    const labels = image.annotations
+      .map((annotation, idx) => ({ annotation, idx }))
+      .filter(({ annotation }) => annotation.note.trim())
+      .map(({ annotation, idx }) => {
+        const colorObj =
+          HIGHLIGHT_COLORS.find((c) => c.value === annotation.color) || HIGHLIGHT_COLORS[0]
+        const centerX = (annotation.x + annotation.width / 2) * canvasDisplayScale
+        const topY = annotation.y * canvasDisplayScale
+        return { annotation, idx, colorObj, centerX, topY, finalTop: topY }
+      })
+      .sort((a, b) => a.topY - b.topY || a.centerX - b.centerX)
+
+    const labelHeight = 56
+    const labelHalfWidth = 88
+    const placed: { left: number; right: number; top: number; bottom: number }[] = []
+
+    for (const label of labels) {
+      let top = label.topY - 8
+
+      for (let attempt = 0; attempt < 24; attempt++) {
+        const left = label.centerX - labelHalfWidth
+        const right = label.centerX + labelHalfWidth
+        const bottom = top
+        const topEdge = top - labelHeight
+
+        const overlaps = placed.some(
+          (p) => !(right < p.left || left > p.right || topEdge > p.bottom || bottom < p.top)
+        )
+
+        if (!overlaps) {
+          placed.push({ left, right, top: topEdge, bottom })
+          label.finalTop = top
+          break
+        }
+
+        top -= labelHeight + 6
+      }
+    }
+
+    return labels
+  }
+
+  const noteLabels = showAllNotes ? layoutNoteLabels() : []
+
+  const renderAnnotationNoteBubble = (
+    annotation: ImageAnnotation,
+    idx: number,
+    centerX: number,
+    topY: number,
+    zIndex = 40
+  ) => {
+    const colorObj =
+      HIGHLIGHT_COLORS.find((c) => c.value === annotation.color) || HIGHLIGHT_COLORS[0]
+
+    return (
+      <div
+        key={annotation.id}
+        className="absolute max-w-[11rem] -translate-x-1/2 -translate-y-full rounded-md border-2 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-md backdrop-blur-sm pointer-events-none animate-in fade-in-0 zoom-in-95 duration-150"
+        style={{
+          left: centerX,
+          top: topY - 6,
+          borderColor: colorObj.border,
+          zIndex,
+        }}
+      >
+        <div className="mb-1 flex items-center gap-1.5">
+          <div
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: annotation.color }}
+          />
+          <span className="text-[10px] font-semibold" style={{ color: colorObj.border }}>
+            {t("imageEditor.highlight", { index: idx + 1 })}
+          </span>
+        </div>
+        {annotation.note.trim() ? (
+          <p className="text-xs leading-snug whitespace-pre-wrap break-words line-clamp-4">
+            {annotation.note}
+          </p>
+        ) : (
+          <p className="text-xs italic text-muted-foreground">{t("imageEditor.noNoteOnHighlight")}</p>
+        )}
+        <div
+          className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b-2 border-r-2 bg-popover/95"
+          style={{ borderColor: colorObj.border }}
+        />
+      </div>
+    )
+  }
 
   return (
-    <Dialog open={open} onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-[95vw] w-[1200px] max-h-[95vh] p-0 gap-0">
-        <DialogHeader className="p-4 border-b border-border">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg">محرر الصورة</DialogTitle>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        className="flex h-[94vh] max-h-[94vh] w-[min(1600px,98vw)] max-w-[98vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[98vw]"
+      >
+        <DialogHeader className="shrink-0 border-b border-border p-4">
+          <div className="flex items-center justify-between gap-4 pe-8">
+            <DialogTitle className="text-lg">{t("imageEditor.title")}</DialogTitle>
             <div className="flex items-center gap-2">
               {/* Mode buttons */}
               <div className="flex gap-1 bg-secondary/50 p-1 rounded-lg">
@@ -324,27 +452,48 @@ export function ImageEditor({
                   className="gap-1.5"
                 >
                   <Eye className="w-4 h-4" />
-                  عرض
+                  {t("imageEditor.modeView")}
                 </Button>
-                <Button
-                  variant={mode === "highlight" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setMode("highlight")}
-                  className="gap-1.5"
-                >
-                  <Highlighter className="w-4 h-4" />
-                  تظليل
-                </Button>
-                <Button
-                  variant={mode === "annotate" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setMode("annotate")}
-                  className="gap-1.5"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  ملاحظة
-                </Button>
+                {!readOnly && (
+                  <>
+                    <Button
+                      variant={mode === "highlight" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setMode("highlight")}
+                      className="gap-1.5"
+                    >
+                      <Highlighter className="w-4 h-4" />
+                      {t("imageEditor.modeHighlight")}
+                    </Button>
+                    <Button
+                      variant={mode === "annotate" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setMode("annotate")}
+                      className="gap-1.5"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      {t("imageEditor.modeAnnotate")}
+                    </Button>
+                  </>
+                )}
               </div>
+
+              <Button
+                variant={showAllNotes ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setShowAllNotes((v) => {
+                    if (!v) setHoveredAnnotation(null)
+                    return !v
+                  })
+                }}
+                disabled={annotationsWithNotes.length === 0}
+                className="gap-1.5"
+                title={t("imageEditor.showNotesTitle")}
+              >
+                <Tags className="w-4 h-4" />
+                {showAllNotes ? t("imageEditor.hideNotes") : t("imageEditor.showNotes")}
+              </Button>
 
               {/* Zoom controls */}
               <div className="flex gap-1">
@@ -365,7 +514,7 @@ export function ImageEditor({
           {/* Color picker for highlight/annotate mode */}
           {(mode === "highlight" || mode === "annotate") && (
             <div className="flex items-center gap-3 mt-3">
-              <span className="text-sm text-muted-foreground">لون التظليل:</span>
+              <span className="text-sm text-muted-foreground">{t("imageEditor.highlightColor")}</span>
               <div className="flex gap-1.5">
                 {HIGHLIGHT_COLORS.map((color) => (
                   <button
@@ -385,34 +534,54 @@ export function ImageEditor({
           )}
         </DialogHeader>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Canvas area */}
           <div
             ref={containerRef}
-            className="flex-1 overflow-auto p-4 bg-secondary/20"
-            style={{ maxHeight: "calc(95vh - 140px)" }}
+            className="relative min-w-0 flex-1 overflow-auto bg-secondary/20 p-4"
           >
             <div className="flex items-center justify-center min-h-full">
-              <canvas
-                ref={canvasRef}
-                className="border border-border rounded-lg shadow-lg"
-                style={{
-                  width: displayWidth,
-                  height: displayHeight,
-                  cursor: mode === "view" ? "default" : "crosshair",
-                }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={() => {
-                  if (isDrawing) handleMouseUp()
-                }}
-              />
+              <div
+                className="relative inline-block"
+                style={{ width: displayWidth, height: displayHeight }}
+              >
+                <canvas
+                  ref={canvasRef}
+                  className="block rounded-lg border border-border shadow-lg"
+                  style={{
+                    width: displayWidth,
+                    height: displayHeight,
+                    cursor: mode === "view" ? "pointer" : "crosshair",
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={() => {
+                    if (isDrawing) handleMouseUp()
+                    if (mode === "view" && !showAllNotes) setHoveredAnnotation(null)
+                  }}
+                />
+
+                {showAllNotes &&
+                  noteLabels.map(({ annotation, idx, finalTop, centerX }) =>
+                    renderAnnotationNoteBubble(annotation, idx, centerX, finalTop)
+                  )}
+
+                {!showAllNotes &&
+                  hoveredAnnotation &&
+                  renderAnnotationNoteBubble(
+                    hoveredAnnotation,
+                    image.annotations.findIndex((a) => a.id === hoveredAnnotation.id),
+                    (hoveredAnnotation.x + hoveredAnnotation.width / 2) * canvasDisplayScale,
+                    hoveredAnnotation.y * canvasDisplayScale,
+                    50
+                  )}
+              </div>
             </div>
           </div>
 
           {/* Side panel */}
-          <div className="w-80 border-r border-border flex flex-col bg-card">
+          <div className="flex w-72 shrink-0 flex-col border-r border-border bg-card sm:w-80">
             <ScrollArea className="flex-1">
               <div className="p-4 space-y-4">
                 {/* Selected annotation note editor */}
@@ -421,21 +590,21 @@ export function ImageEditor({
                     <CardHeader className="p-3">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Edit3 className="w-4 h-4" />
-                        {selectedAnnotation.id === "temp" ? "ملاحظة جديدة" : "تعديل الملاحظة"}
+                        {selectedAnnotation.id === "temp" ? t("imageEditor.newNote") : t("imageEditor.editNote")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 space-y-3">
                       <Textarea
                         value={noteText}
                         onChange={(e) => setNoteText(e.target.value)}
-                        placeholder="اكتب ملاحظتك هنا..."
+                        placeholder={t("imageEditor.notePlaceholder")}
                         rows={3}
                         autoFocus
                       />
                       <div className="flex gap-2">
                         <Button size="sm" onClick={handleSaveNote} className="flex-1">
                           <Save className="w-4 h-4 ml-1" />
-                          حفظ
+                          {t("common.save")}
                         </Button>
                         <Button
                           size="sm"
@@ -444,7 +613,7 @@ export function ImageEditor({
                           disabled={!noteText.trim()}
                         >
                           <StickyNote className="w-4 h-4 ml-1" />
-                          نقل للملاحظات
+                          {t("imageEditor.moveToNotes")}
                         </Button>
                       </div>
                       {selectedAnnotation.id !== "temp" && (
@@ -455,10 +624,11 @@ export function ImageEditor({
                           onClick={() => {
                             onRemoveAnnotation(selectedAnnotation.id)
                             setSelectedAnnotation(null)
+                            setHoveredAnnotation(null)
                           }}
                         >
                           <Trash2 className="w-4 h-4 ml-1" />
-                          حذف التظليل
+                          {t("imageEditor.deleteHighlight")}
                         </Button>
                       )}
                     </CardContent>
@@ -471,14 +641,14 @@ export function ImageEditor({
                     <CardTitle className="text-sm flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Highlighter className="w-4 h-4" />
-                        التظليلات ({image.annotations.length})
+                        {t("imageEditor.highlights", { count: image.annotations.length })}
                       </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-3 pt-0">
                     {image.annotations.length === 0 ? (
                       <p className="text-xs text-muted-foreground text-center py-4">
-                        لا توجد تظليلات بعد. استخدم أداة التظليل أو الملاحظة لإضافة تظليلات.
+                        {t("imageEditor.noHighlights")}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -493,6 +663,7 @@ export function ImageEditor({
                             onClick={() => {
                               setSelectedAnnotation(annotation)
                               setNoteText(annotation.note)
+                              setHoveredAnnotation(annotation)
                             }}
                           >
                             <div className="flex items-center gap-2">
@@ -500,7 +671,9 @@ export function ImageEditor({
                                 className="w-4 h-4 rounded"
                                 style={{ backgroundColor: annotation.color }}
                               />
-                              <span className="text-xs font-medium">تظليل {idx + 1}</span>
+                              <span className="text-xs font-medium">
+                                {t("imageEditor.highlight", { index: idx + 1 })}
+                              </span>
                             </div>
                             {annotation.note && (
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -519,108 +692,42 @@ export function ImageEditor({
                   <CardHeader className="p-3">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-violet-400" />
-                      تحليل بالذكاء الاصطناعي
+                      {t("imageEditor.aiAnalysis")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-3 pt-0 space-y-3">
-                    <Button
-                      onClick={handleAnalyze}
-                      disabled={analyzing}
-                      className="w-full"
-                      style={{ background: analyzing ? undefined : "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
-                    >
-                      {analyzing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-                          جاري التحليل...
-                        </>
-                      ) : (
-                        <>
-                          <Brain className="w-4 h-4 ml-2" />
-                          تحليل الصورة
-                        </>
-                      )}
-                    </Button>
+                    {!readOnly && (
+                      <Button
+                        onClick={() => setShowAiDialog(true)}
+                        className="w-full"
+                        style={{ background: "linear-gradient(135deg, #7c3aed, #4f46e5)" }}
+                      >
+                        <Sparkles className="w-4 h-4 ml-2" />
+                        {t("imageEditor.analyzeImage")}
+                      </Button>
+                    )}
 
                     {image.aiAnalysis && (
-                      <div className="space-y-3 pt-2">
-                        <div>
-                          <h4 className="text-xs font-medium flex items-center gap-1 mb-1">
-                            <BookOpen className="w-3 h-3" />
-                            الوصف
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            {image.aiAnalysis.description}
-                          </p>
-                        </div>
+                      <ImageAnalysisResults
+                        analysis={image.aiAnalysis}
+                        labels={{
+                          description: t("imageEditor.description"),
+                          keyElements: t("imageEditor.keyElements"),
+                          studyNotes: t("imageEditor.studyNotes"),
+                          relatedConcepts: t("imageEditor.relatedConcepts"),
+                        }}
+                        t={t}
+                        addToNotesLabel={t("imageEditor.moveAnalysisToNotes")}
+                        onAddToNotes={() =>
+                          onAddToNotes(formatAnalysisForNotes(image.aiAnalysis!, t))
+                        }
+                      />
+                    )}
 
-                        {image.aiAnalysis.keyElements.length > 0 && (
-                          <div>
-                            <h4 className="text-xs font-medium flex items-center gap-1 mb-1">
-                              <Lightbulb className="w-3 h-3" />
-                              العناصر الرئيسية
-                            </h4>
-                            <div className="flex flex-wrap gap-1">
-                              {image.aiAnalysis.keyElements.map((el, i) => (
-                                <Badge key={i} variant="secondary" className="text-xs">
-                                  {el}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {image.aiAnalysis.studyNotes.length > 0 && (
-                          <div>
-                            <h4 className="text-xs font-medium flex items-center gap-1 mb-1">
-                              <StickyNote className="w-3 h-3" />
-                              ملاحظات دراسية
-                            </h4>
-                            <ul className="space-y-1">
-                              {image.aiAnalysis.studyNotes.map((note, i) => (
-                                <li key={i} className="text-xs text-muted-foreground flex gap-1">
-                                  <span className="text-primary">•</span>
-                                  {note}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {image.aiAnalysis.relatedConcepts.length > 0 && (
-                          <div>
-                            <h4 className="text-xs font-medium flex items-center gap-1 mb-1">
-                              <Link2 className="w-3 h-3" />
-                              مفاهيم مرتبطة
-                            </h4>
-                            <div className="flex flex-wrap gap-1">
-                              {image.aiAnalysis.relatedConcepts.map((concept, i) => (
-                                <Badge key={i} variant="outline" className="text-xs">
-                                  {concept}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            const fullText = [
-                              `## تحليل الصورة`,
-                              `**الوصف:** ${image.aiAnalysis!.description}`,
-                              `**العناصر:** ${image.aiAnalysis!.keyElements.join("، ")}`,
-                              `**ملاحظات:** ${image.aiAnalysis!.studyNotes.join(" | ")}`,
-                            ].join("\n")
-                            onAddToNotes(fullText)
-                          }}
-                        >
-                          <StickyNote className="w-4 h-4 ml-1" />
-                          نقل التحليل للملاحظات
-                        </Button>
-                      </div>
+                    {!image.aiAnalysis && readOnly && (
+                      <p className="text-xs text-muted-foreground text-center py-2">
+                        {t("imageAi.noAnalysisYet")}
+                      </p>
                     )}
                   </CardContent>
                 </Card>
@@ -629,6 +736,14 @@ export function ImageEditor({
           </div>
         </div>
       </DialogContent>
+
+      <ImageAiAnalyzeDialog
+        open={showAiDialog}
+        onOpenChange={setShowAiDialog}
+        image={image}
+        onSaveAnalysis={readOnly ? undefined : onSetAIAnalysis}
+        onAddToNotes={onAddToNotes}
+      />
     </Dialog>
   )
 }

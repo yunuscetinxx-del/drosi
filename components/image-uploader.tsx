@@ -1,14 +1,17 @@
 "use client"
 
-import { useCallback, useRef, ChangeEvent, useState } from "react"
-import { LessonImage, ImageAnnotation, ImageAIAnalysis } from "@/types/lesson"
+import { useCallback, useRef, useState } from "react"
+import type { ImageAIAnalysis, ImageAnnotation, LessonImage } from "@/types/lesson"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ImagePlus, X, Upload, Edit3, Sparkles, MessageSquare } from "lucide-react"
 import { ImageEditor } from "@/components/image-editor"
+import { ImageAiAnalyzeDialog } from "@/components/image-ai-analyze-dialog"
+import { useTranslations } from "@/components/locale-provider"
 
 interface ImageUploaderProps {
   images: LessonImage[]
+  readOnly?: boolean
   onAddImage: (imageUrl: string) => void
   onRemoveImage: (imageId: string) => void
   onAddAnnotation: (imageId: string, annotation: Omit<ImageAnnotation, "id" | "createdAt">) => void
@@ -16,11 +19,11 @@ interface ImageUploaderProps {
   onRemoveAnnotation: (imageId: string, annotationId: string) => void
   onSetAIAnalysis: (imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
   onAddToNotes: (text: string) => void
-  selectedModel: string
 }
 
 export function ImageUploader({
   images,
+  readOnly = false,
   onAddImage,
   onRemoveImage,
   onAddAnnotation,
@@ -28,13 +31,22 @@ export function ImageUploader({
   onRemoveAnnotation,
   onSetAIAnalysis,
   onAddToNotes,
-  selectedModel,
 }: ImageUploaderProps) {
+  const { t } = useTranslations()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [editingImage, setEditingImage] = useState<LessonImage | null>(null)
+  const [editingImageId, setEditingImageId] = useState<string | null>(null)
+  const [analyzeImageId, setAnalyzeImageId] = useState<string | null>(null)
+
+  const editingImage = editingImageId
+    ? images.find((img) => img.id === editingImageId) ?? null
+    : null
+
+  const analyzeImage = analyzeImageId
+    ? images.find((img) => img.id === analyzeImageId) ?? null
+    : null
 
   const handleFileChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files
       if (!files) return
 
@@ -83,84 +95,98 @@ export function ImageUploader({
 
   return (
     <div className="space-y-4">
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-        <p className="text-muted-foreground mb-2">اسحب الصور هنا أو اضغط للاختيار</p>
-        <p className="text-xs text-muted-foreground">يدعم JPG, PNG, GIF</p>
-      </div>
+      {!readOnly && (
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          className="cursor-pointer rounded-xl border-2 border-dashed border-border p-8 text-center transition-colors hover:border-primary/50"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <Upload className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+          <p className="mb-2 text-muted-foreground">{t("imageUploader.dropHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("imageUploader.formats")}</p>
+        </div>
+      )}
 
       {images.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {images.map((image) => (
             <div
               key={image.id}
-              className="relative group rounded-lg overflow-hidden border border-border bg-card"
+              className="group relative overflow-hidden rounded-lg border border-border bg-card"
             >
               <img
                 src={image.url}
-                alt="صورة الدرس"
-                className="w-full h-32 object-cover cursor-pointer"
-                onClick={() => setEditingImage(image)}
+                alt={t("imageUploader.lessonImageAlt")}
+                className="h-32 w-full cursor-pointer object-cover"
+                onClick={() => setEditingImageId(image.id)}
               />
-              
-              {/* Badges overlay */}
-              <div className="absolute top-2 right-2 flex gap-1">
+
+              <div className="absolute end-2 top-2 flex gap-1">
                 {image.annotations.length > 0 && (
-                  <Badge variant="secondary" className="text-xs bg-amber-500/80 text-white">
-                    <MessageSquare className="w-3 h-3 ml-1" />
+                  <Badge variant="secondary" className="bg-amber-500/80 text-xs text-white">
+                    <MessageSquare className="ms-1 h-3 w-3" />
                     {image.annotations.length}
                   </Badge>
                 )}
                 {image.aiAnalysis && (
-                  <Badge variant="secondary" className="text-xs bg-violet-500/80 text-white">
-                    <Sparkles className="w-3 h-3" />
+                  <Badge variant="secondary" className="bg-violet-500/80 text-xs text-white">
+                    <Sparkles className="h-3 w-3" />
                   </Badge>
                 )}
               </div>
 
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setEditingImage(image)
+                    setEditingImageId(image.id)
                   }}
                 >
-                  <Edit3 className="w-4 h-4 ml-1" />
-                  فتح
+                  <Edit3 className="ms-1 h-4 w-4" />
+                  {t("common.open")}
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onRemoveImage(image.id)
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+                {!readOnly && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="bg-violet-600 text-white hover:bg-violet-500"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setAnalyzeImageId(image.id)
+                      }}
+                    >
+                      <Sparkles className="ms-1 h-4 w-4" />
+                      AI
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRemoveImage(image.id)
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
               </div>
 
-              {/* Annotations preview */}
               {image.annotations.length > 0 && (
-                <div className="p-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground truncate">
-                    {image.annotations[0].note || "تظليل بدون ملاحظة"}
+                <div className="border-t border-border p-2">
+                  <p className="truncate text-xs text-muted-foreground">
+                    {image.annotations[0].note || t("imageUploader.highlightNoNote")}
                     {image.annotations.length > 1 && ` (+${image.annotations.length - 1})`}
                   </p>
                 </div>
@@ -170,21 +196,23 @@ export function ImageUploader({
         </div>
       )}
 
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <ImagePlus className="w-4 h-4 ml-2" />
-        إضافة صور
-      </Button>
+      {!readOnly && (
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <ImagePlus className="ms-2 h-4 w-4" />
+          {t("imageUploader.addImages")}
+        </Button>
+      )}
 
-      {/* Image Editor Dialog */}
       {editingImage && (
         <ImageEditor
           image={editingImage}
+          readOnly={readOnly}
           open={!!editingImage}
-          onClose={() => setEditingImage(null)}
+          onClose={() => setEditingImageId(null)}
           onAddAnnotation={(annotation) => onAddAnnotation(editingImage.id, annotation)}
           onUpdateAnnotation={(annotationId, updates) =>
             onUpdateAnnotation(editingImage.id, annotationId, updates)
@@ -194,9 +222,20 @@ export function ImageUploader({
           }
           onSetAIAnalysis={(analysis) => onSetAIAnalysis(editingImage.id, analysis)}
           onAddToNotes={onAddToNotes}
-          selectedModel={selectedModel}
         />
       )}
+
+      <ImageAiAnalyzeDialog
+        open={!!analyzeImage}
+        onOpenChange={(open) => !open && setAnalyzeImageId(null)}
+        image={analyzeImage}
+        onSaveAnalysis={
+          analyzeImage
+            ? (analysis) => onSetAIAnalysis(analyzeImage.id, analysis)
+            : undefined
+        }
+        onAddToNotes={onAddToNotes}
+      />
     </div>
   )
 }

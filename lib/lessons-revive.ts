@@ -1,4 +1,5 @@
-import type { ImageAnnotation, Lesson, LessonImage } from "@/types/lesson"
+import type { ImageAnnotation, Lesson, LessonImage, WordPage } from "@/types/lesson"
+import { normalizeMindMaps, normalizeMindMapFolders } from "@/lib/mind-maps-utils"
 
 /** Restore Date fields after JSON.parse (client or server). */
 export function reviveLesson(l: Lesson): Lesson {
@@ -6,6 +7,11 @@ export function reviveLesson(l: Lesson): Lesson {
     ...l,
     createdAt: new Date(l.createdAt as unknown as string),
     updatedAt: new Date(l.updatedAt as unknown as string),
+    wordPages: (l.wordPages ?? []).map((page: WordPage) => ({
+      ...page,
+      createdAt: new Date(page.createdAt as unknown as string),
+      updatedAt: new Date(page.updatedAt as unknown as string),
+    })),
     images: (l.images ?? []).map((img: LessonImage) => ({
       ...img,
       annotations: (img.annotations ?? []).map((a: ImageAnnotation) => ({
@@ -19,6 +25,8 @@ export function reviveLesson(l: Lesson): Lesson {
           }
         : undefined,
     })),
+    mindMaps: normalizeMindMaps(l, l.id),
+    mindMapFolders: normalizeMindMapFolders(l),
   }
 }
 

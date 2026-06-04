@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSessionFromCookies } from "@/lib/auth-server"
+import { getSessionFromRequest } from "@/lib/auth-server"
 import { reviveLessonsFromJSON } from "@/lib/lessons-revive"
 import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
 
-export async function GET() {
-  const session = await getSessionFromCookies()
+export async function GET(req: NextRequest) {
+  const session = await getSessionFromRequest(req)
   if (!session) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 })
   }
@@ -30,7 +30,7 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getSessionFromCookies()
+  const session = await getSessionFromRequest(req)
   if (!session) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 })
   }

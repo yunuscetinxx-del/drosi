@@ -6,6 +6,7 @@ import { LessonCard } from "@/components/lesson-card"
 import { LessonDetail } from "@/components/lesson-detail"
 import { AddLessonDialog } from "@/components/add-lesson-dialog"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -26,8 +27,12 @@ import {
   LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useTranslations } from "@/components/locale-provider"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { AppNav } from "@/components/app-nav"
 
 export default function HomePage() {
+  const { t } = useTranslations()
   const {
     lessons,
     selectedLesson,
@@ -42,17 +47,13 @@ export default function HomePage() {
     updateImageAnnotation,
     removeImageAnnotation,
     setImageAIAnalysis,
-    addMindMapNode,
-    updateMindMapNode,
-    deleteMindMapNode,
-    saveMindMap,
   } = useLessons()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [subjectFilter, setSubjectFilter] = useState<string>("all")
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [me, setMe] = useState<{ email: string } | null>(null)
+  const [me, setMe] = useState<{ email: string; isAdmin: boolean } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -60,8 +61,9 @@ export default function HomePage() {
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" })
         if (!res.ok) return
-        const data = (await res.json()) as { user?: { email: string } }
-        if (!cancelled && data.user?.email) setMe({ email: data.user.email })
+        const data = (await res.json()) as { user?: { email: string; isAdmin?: boolean } }
+        if (!cancelled && data.user?.email)
+          setMe({ email: data.user.email, isAdmin: data.user.isAdmin === true })
       } catch {
         /* ignore */
       }
@@ -114,7 +116,7 @@ export default function HomePage() {
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-background">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">جاري تحميل الدروس...</p>
+          <p className="text-muted-foreground">{t("home.loadingLessons")}</p>
         </div>
       </div>
     )
@@ -130,11 +132,13 @@ export default function HomePage() {
                 <BookOpen className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">دروسي</h1>
-                <p className="text-xs text-muted-foreground">إدارة الدروس والملاحظات</p>
+                <h1 className="text-xl font-bold">{t("app.title")}</h1>
+                <p className="text-xs text-muted-foreground">{t("app.subtitle")}</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <AppNav shareLesson={selectedLesson} />
+              <LanguageSwitcher />
               {me?.email && (
                 <span
                   className="hidden max-w-[160px] truncate text-xs text-muted-foreground sm:inline"
@@ -144,21 +148,36 @@ export default function HomePage() {
                   {me.email}
                 </span>
               )}
+              {me?.isAdmin && (
+                <Badge variant="secondary" className="text-xs">
+                  {t("auth.admin")}
+                </Badge>
+              )}
               <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
                 <LogOut className="w-4 h-4 ml-2" />
-                خروج
+                {t("auth.logout")}
               </Button>
               <Button onClick={() => setShowAddDialog(true)}>
                 <Plus className="w-4 h-4 ml-2" />
-                درس جديد
+                {t("home.newLesson")}
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex w-full min-h-0 flex-1 flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-0">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden",
+          !selectedLesson && "px-4 py-4 sm:px-6 lg:px-8"
+        )}
+      >
+        <div
+          className={cn(
+            "flex w-full min-h-0 flex-1 flex-col lg:flex-row lg:items-stretch",
+            selectedLesson ? "gap-0" : "gap-6 lg:gap-0"
+          )}
+        >
           <div
             className={cn(
               "flex max-h-full min-h-0 flex-col",
@@ -177,17 +196,17 @@ export default function HomePage() {
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="ابحث عن درس..."
+                  placeholder={t("home.searchPlaceholder")}
                   className="pr-10"
                 />
               </div>
               <Select value={subjectFilter} onValueChange={setSubjectFilter}>
                 <SelectTrigger className="w-full sm:w-[160px]">
                   <SlidersHorizontal className="w-4 h-4 ml-2" />
-                  <SelectValue placeholder="تصفية حسب المادة" />
+                  <SelectValue placeholder={t("home.filterSubject")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">جميع المواد</SelectItem>
+                  <SelectItem value="all">{t("home.allSubjects")}</SelectItem>
                   {subjects.map((subject) => (
                     <SelectItem key={subject} value={subject}>
                       {subject}
@@ -199,7 +218,7 @@ export default function HomePage() {
 
             <div className="flex shrink-0 items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                {filteredLessons.length} درس
+                {t("home.lessonCount", { count: filteredLessons.length })}
               </span>
               <Button variant="ghost" size="icon">
                 <LayoutGrid className="w-4 h-4" />
@@ -212,13 +231,13 @@ export default function HomePage() {
                 <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
                 <p className="text-muted-foreground mb-4">
                   {searchQuery || subjectFilter !== "all"
-                    ? "لا توجد نتائج للبحث"
-                    : "لا توجد دروس بعد"}
+                    ? t("home.noSearchResults")
+                    : t("home.noLessons")}
                 </p>
                 {!searchQuery && subjectFilter === "all" && (
                   <Button onClick={() => setShowAddDialog(true)}>
                     <Plus className="w-4 h-4 ml-2" />
-                    أضف أول درس
+                    {t("home.addFirstLesson")}
                   </Button>
                 )}
               </div>
@@ -248,7 +267,7 @@ export default function HomePage() {
               className="pointer-events-auto absolute top-1/2 left-1/2 h-11 w-7 -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-card shadow-md"
               aria-expanded={sidebarOpen}
               aria-controls="lessons-sidebar"
-              title={sidebarOpen ? "إخفاء قائمة الدروس" : "إظهار قائمة الدروس"}
+              title={sidebarOpen ? t("home.hideSidebar") : t("home.showSidebar")}
               onClick={() => setSidebarOpen((v) => !v)}
             >
               {sidebarOpen ? (
@@ -266,7 +285,7 @@ export default function HomePage() {
             )}
           >
             {selectedLesson ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
                 <LessonDetail
                   lesson={selectedLesson}
                   onUpdate={updateLesson}
@@ -276,18 +295,14 @@ export default function HomePage() {
                   onUpdateImageAnnotation={updateImageAnnotation}
                   onRemoveImageAnnotation={removeImageAnnotation}
                   onSetImageAIAnalysis={setImageAIAnalysis}
-                  onAddMindMapNode={addMindMapNode}
-                  onUpdateMindMapNode={updateMindMapNode}
-                  onDeleteMindMapNode={deleteMindMapNode}
-                  onSaveMindMap={saveMindMap}
                   onClose={() => setSelectedLesson(null)}
                 />
               </div>
             ) : (
-              <div className="bg-card border border-border rounded-xl flex flex-1 min-h-0 items-center justify-center">
+              <div className="flex flex-1 min-h-0 items-center justify-center bg-card">
                 <div className="text-center">
                   <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
-                  <p className="text-muted-foreground">اختر درسًا من القائمة للعرض</p>
+                  <p className="text-muted-foreground">{t("home.selectLesson")}</p>
                 </div>
               </div>
             )}

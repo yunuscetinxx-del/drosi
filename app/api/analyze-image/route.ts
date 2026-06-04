@@ -1,40 +1,29 @@
 import { NextRequest, NextResponse } from "next/server"
-
-const MODEL_OPTIONS = {
-  "x-ai/grok-3-mini": { name: "Grok 3 Mini" },
-  "nvidia/llama-nemotron-embed-vl-1b-v2:free": { name: "Llama Nemotron" },
-} as const
-
-type ModelKey = keyof typeof MODEL_OPTIONS
+import { AI_MODEL, AI_MODEL_CONFIG } from "@/lib/ai-model"
+import { buildImageAnalysisPrompt } from "@/lib/image-analysis-prompt"
+import { formatOpenRouterError } from "@/lib/openrouter-errors"
 
 export async function POST(req: NextRequest) {
-  const { imageUrl, model = "x-ai/grok-3-mini" } = await req.json()
+  let body: { imageUrl?: string; instructions?: string }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 })
+  }
+
+  const { imageUrl, instructions } = body
+  if (!imageUrl || typeof imageUrl !== "string") {
+    return NextResponse.json({ error: "رابط الصورة مطلوب" }, { status: 400 })
+  }
 
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: "OPENROUTER_API_KEY غير مضبوط" }, { status: 500 })
   }
 
-  const selectedModel = model as ModelKey
-  if (!(selectedModel in MODEL_OPTIONS)) {
-    return NextResponse.json({ error: "نموذج غير صحيح" }, { status: 400 })
-  }
-
-  const prompt = `أنت مساعد تعليمي متخصص في تحليل الصور التعليمية. قم بتحليل هذه الصورة وأعطِ تحليلاً شاملاً باللغة العربية.
-
-المطلوب:
-1. وصف شامل لمحتوى الصورة
-2. تحديد العناصر الرئيسية والمفاهيم المهمة
-3. ملاحظات دراسية مفيدة للطالب
-4. مفاهيم مرتبطة يمكن البحث عنها
-
-قدّم التحليل بالتنسيق JSON التالي حرفياً بدون أي markdown أو \`\`\` أو نص خارج الـ JSON:
-{
-  "description": "وصف شامل للصورة",
-  "keyElements": ["عنصر 1", "عنصر 2", "عنصر 3"],
-  "studyNotes": ["ملاحظة دراسية 1", "ملاحظة دراسية 2", "ملاحظة دراسية 3"],
-  "relatedConcepts": ["مفهوم مرتبط 1", "مفهوم مرتبط 2"]
-}`
+  const prompt = buildImageAnalysisPrompt(
+    typeof instructions === "string" ? instructions : undefined
+  )
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -46,7 +35,7 @@ export async function POST(req: NextRequest) {
         "X-Title": "Durusi - Image Analyzer",
       },
       body: JSON.stringify({
-        model: selectedModel,
+        model: AI_MODEL,
         messages: [
           {
             role: "user",
@@ -56,15 +45,18 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
-        temperature: 0.7,
-        max_tokens: 1000,
+        temperature: AI_MODEL_CONFIG.temperature,
+        max_tokens: AI_MODEL_CONFIG.maxTokensImage,
       }),
     })
 
     if (!response.ok) {
       const err = await response.text()
       console.log("[v0] OpenRouter image analysis error:", err)
-      return NextResponse.json({ error: "خطأ من OpenRouter: " + err }, { status: 500 })
+      return NextResponse.json(
+        { error: formatOpenRouterError(err, response.status) },
+        { status: response.status === 429 ? 429 : 500 }
+      )
     }
 
     const data = await response.json()
@@ -76,12 +68,11 @@ export async function POST(req: NextRequest) {
       analysis = JSON.parse(cleaned)
     } catch {
       console.log("[v0] Image analysis JSON parse failed, raw text:", text)
-      // Return a fallback analysis
       analysis = {
         description: text || "تعذر تحليل الصورة",
-        keyElements: [],
-        studyNotes: [],
-        relatedConcepts: [],
+        keyElements: [] as string[],
+        studyNotes: [] as string[],
+        relatedConcepts: [] as string[],
       }
     }
 

@@ -1,29 +1,51 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { MindMapNode } from "@/types/lesson"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  MindMapNode,
+  type LessonImage,
+  type MindMap,
+  type MindMapFolder,
+  type WordPage,
+} from "@/types/lesson"
+import { downloadSvgAsPng } from "@/lib/mind-map-export"
+import type { LessonTab } from "@/lib/app-navigation"
+import {
+  MIND_MAP_NODE_COLORS,
+  defaultRoleForNewNode,
+  getMindMapColorSet,
+  getMindMapNodeAnchor,
+  getMindMapNodeLayout,
+} from "@/lib/mind-map-node"
+import { MindMapNodeMenu, type MindMapContextMenuState } from "@/components/mind-map-node-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, ZoomIn, ZoomOut, Maximize2, Hand, MousePointer2, GripVertical } from "lucide-react"
+import { Plus, ZoomIn, ZoomOut, Maximize2, Hand, MousePointer2, GripVertical, BoxSelect } from "lucide-react"
+import { useTranslations } from "@/components/locale-provider"
 
 interface MindMapProps {
   nodes: MindMapNode[]
+  allMaps?: MindMap[]
+  folders?: MindMapFolder[]
+  currentMapId?: string
+  lessonTitle?: string
+  lessonSubject?: string
+  images?: LessonImage[]
+  wordPages?: WordPage[]
+  keyPoints?: string[]
+  nodeSearchQuery?: string
+  expandingNodeId?: string | null
+  onNavigateToMap?: (mapId: string) => void
+  onOpenLessonTab?: (tab: LessonTab) => void
+  onExpandNodeAi?: (nodeId: string) => void | Promise<void>
+  onDuplicateSubtree?: (nodeId: string) => void
+  registerExportPng?: (fn: () => void) => void
   onAddNode: (node: Omit<MindMapNode, "id">) => void
   onUpdateNode: (nodeId: string, updates: Partial<MindMapNode>) => void
+  onUpdateNodes?: (updates: Array<{ nodeId: string; patch: Partial<MindMapNode> }>) => void
   onDeleteNode: (nodeId: string) => void
   readonly?: boolean
 }
-
-const NODE_COLORS = [
-  { bg: "#3b82f6", border: "#2563eb", glow: "#3b82f640" },
-  { bg: "#8b5cf6", border: "#7c3aed", glow: "#8b5cf640" },
-  { bg: "#10b981", border: "#059669", glow: "#10b98140" },
-  { bg: "#f59e0b", border: "#d97706", glow: "#f59e0b40" },
-  { bg: "#ef4444", border: "#dc2626", glow: "#ef444440" },
-  { bg: "#06b6d4", border: "#0891b2", glow: "#06b6d440" },
-  { bg: "#ec4899", border: "#db2777", glow: "#ec489940" },
-  { bg: "#84cc16", border: "#65a30d", glow: "#84cc1640" },
-]
 
 /** مساحة الإحداثيات عند التكبير 1× (أكبر من 900×520 لاستغلال الشاشات العريضة) */
 const MAP_BASE_W = 1400
@@ -57,13 +79,65 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return false
 }
 
+type WorldRect = { x: number; y: number; w: number; h: number }
+type MarqueeState = { x1: number; y1: number; x2: number; y2: number }
+
+const MARQUEE_MIN_DRAG_PX = 4
+
+function normalizeWorldRect(x1: number, y1: number, x2: number, y2: number): WorldRect {
+  const x = Math.min(x1, x2)
+  const y = Math.min(y1, y2)
+  return { x, y, w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) }
+}
+
+function rectsIntersect(a: WorldRect, b: WorldRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+}
+
+function getNodeWorldBounds(node: MindMapNode): WorldRect {
+  const layout = getMindMapNodeLayout(node)
+  return { x: node.x, y: node.y, w: layout.bodyW, h: layout.totalH }
+}
+
+function nodesInMarqueeRect(nodes: MindMapNode[], marquee: MarqueeState): string[] {
+  const rect = normalizeWorldRect(marquee.x1, marquee.y1, marquee.x2, marquee.y2)
+  return nodes.filter((node) => rectsIntersect(rect, getNodeWorldBounds(node))).map((n) => n.id)
+}
+
+function marqueeDraggedEnough(
+  marquee: MarqueeState,
+  svg: SVGSVGElement,
+  viewBox: { w: number; h: number }
+): boolean {
+  const rect = svg.getBoundingClientRect()
+  const dx = (Math.abs(marquee.x2 - marquee.x1) / viewBox.w) * rect.width
+  const dy = (Math.abs(marquee.y2 - marquee.y1) / viewBox.h) * rect.height
+  return Math.hypot(dx, dy) >= MARQUEE_MIN_DRAG_PX
+}
+
 export function MindMap({
   nodes,
+  allMaps = [],
+  folders = [],
+  currentMapId = "",
+  lessonTitle = "",
+  images = [],
+  wordPages = [],
+  keyPoints = [],
+  nodeSearchQuery = "",
+  expandingNodeId = null,
+  onNavigateToMap,
+  onOpenLessonTab,
+  onExpandNodeAi,
+  onDuplicateSubtree,
+  registerExportPng,
   onAddNode,
   onUpdateNode,
+  onUpdateNodes,
   onDeleteNode,
   readonly = false,
 }: MindMapProps) {
+  const { t } = useTranslations()
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapSurfaceRef = useRef<HTMLDivElement>(null)
@@ -106,6 +180,11 @@ export function MindMap({
   const dragMoveRafRef = useRef<number | null>(null)
   const pendingDragClientRef = useRef<{ x: number; y: number } | null>(null)
   const draggingRef = useRef<string | null>(null)
+  const dragGroupStartsRef = useRef<Record<string, { x: number; y: number }> | null>(null)
+  const marqueeActiveRef = useRef(false)
+  const marqueeAdditiveRef = useRef(false)
+  const marqueeBaseSelectionRef = useRef<Set<string>>(new Set())
+  const cancelMarqueeRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     viewBoxRef.current = viewBox
@@ -117,6 +196,10 @@ export function MindMap({
 
   useEffect(() => {
     draggingRef.current = dragging
+    if (!dragging) {
+      setActiveDragIds([])
+      dragGroupStartsRef.current = null
+    }
   }, [dragging])
 
   useEffect(() => {
@@ -142,6 +225,7 @@ export function MindMap({
   const applyCanvasTool = useCallback(
     (tool: CanvasTool) => {
       cancelGestureRafs()
+      cancelMarqueeRef.current()
       draggingRef.current = null
       setDragging(null)
       setPanning(false)
@@ -150,14 +234,76 @@ export function MindMap({
     [cancelGestureRafs]
   )
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(() => new Set())
+  const [marquee, setMarquee] = useState<MarqueeState | null>(null)
+  const [activeDragIds, setActiveDragIds] = useState<string[]>([])
+  const [contextMenu, setContextMenu] = useState<MindMapContextMenuState>(null)
   const clipboardRef = useRef<Omit<MindMapNode, "id"> | null>(null)
 
+  const primarySelectedId =
+    selectedNodeIds.size === 1 ? [...selectedNodeIds][0] ?? null : null
+
+  const cancelMarquee = useCallback(() => {
+    marqueeActiveRef.current = false
+    setMarquee(null)
+  }, [])
+
+  cancelMarqueeRef.current = cancelMarquee
+
+  const applyMarqueeSelection = useCallback(
+    (nextMarquee: MarqueeState, additive: boolean) => {
+      const hitIds = nodesInMarqueeRect(nodes, nextMarquee)
+      if (additive) {
+        setSelectedNodeIds(new Set([...marqueeBaseSelectionRef.current, ...hitIds]))
+      } else {
+        setSelectedNodeIds(new Set(hitIds))
+      }
+    },
+    [nodes]
+  )
+
+  const finalizeMarquee = useCallback(
+    (additive: boolean) => {
+      const current = marquee
+      const svg = svgRef.current
+      if (!current || !svg) {
+        cancelMarquee()
+        return
+      }
+
+      if (!marqueeDraggedEnough(current, svg, viewBoxRef.current)) {
+        if (!additive) setSelectedNodeIds(new Set())
+        cancelMarquee()
+        return
+      }
+
+      applyMarqueeSelection(current, additive)
+      cancelMarquee()
+    },
+    [marquee, cancelMarquee, applyMarqueeSelection]
+  )
+
   useEffect(() => {
-    if (selectedNodeId && !nodes.some((n) => n.id === selectedNodeId)) {
-      setSelectedNodeId(null)
-    }
-  }, [nodes, selectedNodeId])
+    if (!marquee || !marqueeActiveRef.current) return
+    applyMarqueeSelection(marquee, marqueeAdditiveRef.current)
+  }, [marquee, applyMarqueeSelection])
+
+  useEffect(() => {
+    setSelectedNodeIds((prev) => {
+      const next = new Set([...prev].filter((id) => nodes.some((n) => n.id === id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [nodes])
+
+  /** ضغط مستمر على Ctrl/⌘ = وضع تحديد متعدد بدون سحب */
+  const [multiSelectHeld, setMultiSelectHeld] = useState(false)
+  const multiSelectHeldRef = useRef(false)
+
+  const isMultiSelectModifier = useCallback(
+    (e?: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }) =>
+      Boolean(e?.ctrlKey || e?.metaKey || e?.shiftKey || multiSelectHeldRef.current),
+    []
+  )
 
   const effectiveCanvasTool: CanvasTool = spaceHeld ? "pan" : canvasTool
 
@@ -206,6 +352,51 @@ export function MindMap({
       window.removeEventListener("blur", releaseSpacePan)
     }
   }, [applyCanvasTool, cancelGestureRafs])
+
+  useEffect(() => {
+    const mindMapUiActive = () => {
+      const root = containerRef.current
+      if (!root) return false
+      if (pointerInsideMapRef.current) return true
+      const ae = document.activeElement
+      return ae instanceof Node && root.contains(ae)
+    }
+
+    const isMultiSelectKey = (e: KeyboardEvent) =>
+      e.code === "ControlLeft" ||
+      e.code === "ControlRight" ||
+      e.code === "MetaLeft" ||
+      e.code === "MetaRight"
+
+    const releaseMultiSelect = () => {
+      if (!multiSelectHeldRef.current) return
+      multiSelectHeldRef.current = false
+      setMultiSelectHeld(false)
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isMultiSelectKey(e)) return
+      if (e.repeat) return
+      if (isTypingTarget(e.target)) return
+      if (!mindMapUiActive()) return
+      multiSelectHeldRef.current = true
+      setMultiSelectHeld(true)
+    }
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (!isMultiSelectKey(e)) return
+      releaseMultiSelect()
+    }
+
+    window.addEventListener("keydown", onKeyDown, true)
+    window.addEventListener("keyup", onKeyUp, true)
+    window.addEventListener("blur", releaseMultiSelect)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true)
+      window.removeEventListener("keyup", onKeyUp, true)
+      window.removeEventListener("blur", releaseMultiSelect)
+    }
+  }, [])
 
   useEffect(() => {
     if (!draggingToolbar) return
@@ -361,6 +552,40 @@ export function MindMap({
 
   const handleMouseUpRef = useRef<() => void>(() => {})
 
+  const applyNodeUpdates = useCallback(
+    (updates: Array<{ nodeId: string; patch: Partial<MindMapNode> }>) => {
+      if (updates.length === 0) return
+      if (onUpdateNodes) {
+        onUpdateNodes(updates)
+        return
+      }
+      for (const { nodeId, patch } of updates) {
+        onUpdateNode(nodeId, patch)
+      }
+    },
+    [onUpdateNode, onUpdateNodes]
+  )
+
+  const computeDragUpdates = useCallback(
+    (dragId: string, worldX: number, worldY: number, offset: { x: number; y: number }) => {
+      const primaryNewX = worldX - offset.x
+      const primaryNewY = worldY - offset.y
+      const starts = dragGroupStartsRef.current
+      if (starts && Object.keys(starts).length > 1) {
+        const primaryStart = starts[dragId]
+        if (!primaryStart) return null
+        const dx = primaryNewX - primaryStart.x
+        const dy = primaryNewY - primaryStart.y
+        return Object.entries(starts).map(([id, start]) => ({
+          nodeId: id,
+          patch: { x: start.x + dx, y: start.y + dy },
+        }))
+      }
+      return [{ nodeId: dragId, patch: { x: primaryNewX, y: primaryNewY } }]
+    },
+    []
+  )
+
   const flushDragMove = useCallback(() => {
     dragMoveRafRef.current = null
     const pt = pendingDragClientRef.current
@@ -369,11 +594,9 @@ export function MindMap({
     pendingDragClientRef.current = null
     const world = svgToWorldFromRef(pt.x, pt.y)
     const off = draggingOffsetRef.current
-    onUpdateNode(dragId, {
-      x: world.x - off.x,
-      y: world.y - off.y,
-    })
-  }, [onUpdateNode, svgToWorldFromRef])
+    const updates = computeDragUpdates(dragId, world.x, world.y, off)
+    if (updates) applyNodeUpdates(updates)
+  }, [applyNodeUpdates, computeDragUpdates, svgToWorldFromRef])
 
   // Node drag: always from the node body (even in «يد» mode); canvas pan only from empty background
   const handleNodeMouseDown = useCallback(
@@ -383,7 +606,34 @@ export function MindMap({
       if (connecting) return
       if (editingNode === nodeId) return
 
-      setSelectedNodeId(nodeId)
+      const mod = isMultiSelectModifier(e)
+      if (mod) {
+        setSelectedNodeIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(nodeId)) next.delete(nodeId)
+          else next.add(nodeId)
+          return next
+        })
+        return
+      }
+
+      let nextSelected: Set<string>
+      if (selectedNodeIds.has(nodeId)) {
+        nextSelected = new Set(selectedNodeIds)
+      } else {
+        nextSelected = new Set([nodeId])
+      }
+      setSelectedNodeIds(nextSelected)
+
+      const dragIds = nextSelected.has(nodeId) ? [...nextSelected] : [nodeId]
+      const starts: Record<string, { x: number; y: number }> = {}
+      for (const id of dragIds) {
+        const n = nodes.find((x) => x.id === id)
+        if (n) starts[id] = { x: n.x, y: n.y }
+      }
+      dragGroupStartsRef.current = starts
+      setActiveDragIds(dragIds)
+
       const node = nodes.find((n) => n.id === nodeId)
       if (!node) return
       const world = svgToWorld(e.clientX, e.clientY)
@@ -393,10 +643,10 @@ export function MindMap({
       setDraggingOffset(offset)
       setDragging(nodeId)
     },
-    [nodes, readonly, connecting, svgToWorld, editingNode]
+    [nodes, readonly, connecting, svgToWorld, editingNode, selectedNodeIds, isMultiSelectModifier]
   )
 
-  // Canvas pan (في وضع اليد فقط عند التحرير؛ في وضع التحديد لا نُحرّك اللوحة من الخلفية)
+  // Canvas pan or marquee select on empty background
   const handleSvgMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (draggingRef.current) return
@@ -405,17 +655,29 @@ export function MindMap({
         return
       }
       if (effectiveCanvasTool === "select" && !readonly) {
-        setSelectedNodeId(null)
+        const additive = isMultiSelectModifier(e)
+        marqueeAdditiveRef.current = additive
+        if (additive) {
+          marqueeBaseSelectionRef.current = new Set(selectedNodeIds)
+        }
+        const world = svgToWorld(e.clientX, e.clientY)
+        marqueeActiveRef.current = true
+        setMarquee({ x1: world.x, y1: world.y, x2: world.x, y2: world.y })
         return
       }
       panStartRef.current = { x: e.clientX, y: e.clientY }
       setPanning(true)
     },
-    [connecting, readonly, effectiveCanvasTool]
+    [connecting, readonly, effectiveCanvasTool, isMultiSelectModifier, selectedNodeIds, svgToWorld]
   )
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
+      if (marqueeActiveRef.current) {
+        const world = svgToWorld(e.clientX, e.clientY)
+        setMarquee((prev) => (prev ? { ...prev, x2: world.x, y2: world.y } : null))
+        return
+      }
       if (draggingRef.current) {
         pendingDragClientRef.current = { x: e.clientX, y: e.clientY }
         if (dragMoveRafRef.current == null) {
@@ -430,10 +692,16 @@ export function MindMap({
         }
       }
     },
-    [panning, flushDragMove, flushPanMove]
+    [panning, flushDragMove, flushPanMove, svgToWorld]
   )
 
   const handleMouseUp = useCallback(() => {
+    if (marqueeActiveRef.current) {
+      finalizeMarquee(marqueeAdditiveRef.current)
+      setPanning(false)
+      return
+    }
+
     if (panMoveRafRef.current != null) {
       cancelAnimationFrame(panMoveRafRef.current)
       panMoveRafRef.current = null
@@ -466,17 +734,38 @@ export function MindMap({
       const id = draggingRef.current
       const world = svgToWorldFromRef(pt.x, pt.y)
       const off = draggingOffsetRef.current
-      onUpdateNode(id, { x: world.x - off.x, y: world.y - off.y })
+      const updates = computeDragUpdates(id, world.x, world.y, off)
+      if (updates) applyNodeUpdates(updates)
     } else {
       pendingDragClientRef.current = null
     }
 
+    dragGroupStartsRef.current = null
     draggingRef.current = null
+    setActiveDragIds([])
     setDragging(null)
     setPanning(false)
-  }, [onUpdateNode, svgToWorldFromRef])
+  }, [applyNodeUpdates, computeDragUpdates, svgToWorldFromRef, finalizeMarquee])
 
   handleMouseUpRef.current = handleMouseUp
+
+  useEffect(() => {
+    if (!marquee) return
+    const onWindowMove = (ev: MouseEvent) => {
+      if (!marqueeActiveRef.current) return
+      const world = svgToWorldFromRef(ev.clientX, ev.clientY)
+      setMarquee((prev) => (prev ? { ...prev, x2: world.x, y2: world.y } : null))
+    }
+    const onWindowUp = () => {
+      handleMouseUpRef.current()
+    }
+    window.addEventListener("mousemove", onWindowMove)
+    window.addEventListener("mouseup", onWindowUp)
+    return () => {
+      window.removeEventListener("mousemove", onWindowMove)
+      window.removeEventListener("mouseup", onWindowUp)
+    }
+  }, [marquee, svgToWorldFromRef])
 
   useEffect(() => {
     if (!dragging) return
@@ -534,50 +823,135 @@ export function MindMap({
   )
 
   const handleAddNode = useCallback(() => {
-    if (!newNodeText.trim()) return
-    const color = NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)]
+    const text = newNodeText.trim() || t("mindMap.newNode")
+    const color = MIND_MAP_NODE_COLORS[Math.floor(Math.random() * MIND_MAP_NODE_COLORS.length)]
+    const parentId = null
     onAddNode({
-      text: newNodeText.trim(),
+      text,
       x: viewBox.x + viewBox.w / 2 + (Math.random() - 0.5) * 200,
       y: viewBox.y + viewBox.h / 2 + (Math.random() - 0.5) * 150,
-      parentId: null,
+      parentId,
       color: color.bg,
+      role: defaultRoleForNewNode(parentId),
+      note: "",
     })
     setNewNodeText("")
-  }, [newNodeText, viewBox, onAddNode])
+  }, [newNodeText, viewBox, onAddNode, t])
 
   const handleAddChildNode = useCallback(
     (parentId: string) => {
       const parent = nodes.find((n) => n.id === parentId)
       if (!parent) return
-      const color = NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)]
+      const color = MIND_MAP_NODE_COLORS[Math.floor(Math.random() * MIND_MAP_NODE_COLORS.length)]
       const angle = Math.random() * Math.PI * 2
       const dist = 150 + Math.random() * 50
       onAddNode({
-        text: "عقدة جديدة",
+        text: t("mindMap.newNode"),
         x: parent.x + Math.cos(angle) * dist,
         y: parent.y + Math.sin(angle) * dist,
         parentId,
         color: color.bg,
+        role: "branch",
+        note: "",
       })
     },
-    [nodes, onAddNode]
+    [nodes, onAddNode, t]
   )
 
-  // Bezier edge path
-  const edgePath = (from: MindMapNode, to: MindMapNode) => {
-    const dx = to.x - from.x
-    const dy = to.y - from.y
-    const mx = from.x + dx * 0.5
-    return `M ${from.x} ${from.y} C ${mx} ${from.y}, ${mx} ${to.y}, ${to.x} ${to.y}`
+  const handleAddSiblingNode = useCallback(
+    (nodeId: string) => {
+      const ref = nodes.find((n) => n.id === nodeId)
+      if (!ref) return
+      const color = MIND_MAP_NODE_COLORS[Math.floor(Math.random() * MIND_MAP_NODE_COLORS.length)]
+      onAddNode({
+        text: t("mindMap.newNode"),
+        x: ref.x + 140,
+        y: ref.y + (Math.random() - 0.5) * 80,
+        parentId: ref.parentId,
+        color: color.bg,
+        role: defaultRoleForNewNode(ref.parentId),
+        note: "",
+      })
+    },
+    [nodes, onAddNode, t]
+  )
+
+  const handleAddNodeAt = useCallback(
+    (worldX: number, worldY: number, role: "main" | "branch") => {
+      const color = MIND_MAP_NODE_COLORS[Math.floor(Math.random() * MIND_MAP_NODE_COLORS.length)]
+      const bodyW = role === "main" ? 168 : 124
+      const bodyH = role === "main" ? 52 : 38
+      onAddNode({
+        text: role === "main" ? t("mindMap.newMainSection") : t("mindMap.newNode"),
+        x: worldX - bodyW / 2,
+        y: worldY - bodyH / 2,
+        parentId: null,
+        color: color.bg,
+        role,
+        note: "",
+      })
+    },
+    [onAddNode, t]
+  )
+
+  const handleExportPng = useCallback(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const name = (lessonTitle || "mind-map").replace(/[^\w\u0600-\u06FF-]+/g, "_").slice(0, 40)
+    void downloadSvgAsPng(svg, `${name}.png`, viewBox)
+  }, [lessonTitle, viewBox])
+
+  useEffect(() => {
+    registerExportPng?.(handleExportPng)
+    return () => registerExportPng?.(() => {})
+  }, [registerExportPng, handleExportPng])
+
+  const searchLower = nodeSearchQuery.trim().toLowerCase()
+  const searchMatchIds = useMemo(() => {
+    if (!searchLower) return new Set<string>()
+    return new Set(
+      nodes
+        .filter(
+          (n) =>
+            n.text.toLowerCase().includes(searchLower) ||
+            (n.note ?? "").toLowerCase().includes(searchLower)
+        )
+        .map((n) => n.id)
+    )
+  }, [nodes, searchLower])
+
+  const handleNodeContextMenu = useCallback(
+    (e: React.MouseEvent, nodeId: string) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (readonly) return
+      setSelectedNodeIds(new Set([nodeId]))
+      setContextMenu({ nodeId, clientX: e.clientX, clientY: e.clientY })
+    },
+    [readonly]
+  )
+
+  const handleCanvasContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      if (readonly) return
+      const world = svgToWorld(e.clientX, e.clientY)
+      setContextMenu({
+        clientX: e.clientX,
+        clientY: e.clientY,
+        worldX: world.x,
+        worldY: world.y,
+      })
+    },
+    [readonly, svgToWorld]
+  )
+
+  // Bezier edge path (نقاط الربط = مركز جسم العقدة)
+  const edgePath = (fromX: number, fromY: number, toX: number, toY: number) => {
+    const dx = toX - fromX
+    const mx = fromX + dx * 0.5
+    return `M ${fromX} ${fromY} C ${mx} ${fromY}, ${mx} ${toY}, ${toX} ${toY}`
   }
-
-  const getColorSet = (colorHex: string) =>
-    NODE_COLORS.find((c) => c.bg === colorHex) ?? NODE_COLORS[0]
-
-  const NODE_W = 140
-  const NODE_H = 44
-  const NODE_R = 8
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -587,9 +961,16 @@ export function MindMap({
 
       const mod = e.ctrlKey || e.metaKey
 
+      if (mod && e.code === "KeyA") {
+        if (nodes.length === 0) return
+        setSelectedNodeIds(new Set(nodes.map((n) => n.id)))
+        e.preventDefault()
+        return
+      }
+
       if (mod && e.code === "KeyC") {
-        if (!selectedNodeId) return
-        const n = nodes.find((x) => x.id === selectedNodeId)
+        if (!primarySelectedId) return
+        const n = nodes.find((x) => x.id === primarySelectedId)
         if (!n) return
         clipboardRef.current = {
           text: n.text,
@@ -597,6 +978,9 @@ export function MindMap({
           y: n.y,
           parentId: n.parentId,
           color: n.color,
+          role: n.role,
+          note: n.note,
+          linkedMapId: n.linkedMapId ?? null,
         }
         e.preventDefault()
         void navigator.clipboard
@@ -614,6 +998,9 @@ export function MindMap({
           y: clip.y + 28,
           parentId: null,
           color: clip.color,
+          role: clip.role ?? defaultRoleForNewNode(null),
+          note: clip.note ?? "",
+          linkedMapId: null,
         })
         e.preventDefault()
         return
@@ -634,15 +1021,57 @@ export function MindMap({
         e.preventDefault()
         return
       }
+
+      if (e.code === "Delete" || e.code === "Backspace") {
+        if (selectedNodeIds.size === 0) return
+        for (const id of selectedNodeIds) onDeleteNode(id)
+        setSelectedNodeIds(new Set())
+        setEditingNode(null)
+        e.preventDefault()
+        return
+      }
+
+      if (e.code === "F2" && primarySelectedId) {
+        setEditingNode(primarySelectedId)
+        e.preventDefault()
+        return
+      }
+
+      if (e.code === "Enter" && primarySelectedId) {
+        handleAddSiblingNode(primarySelectedId)
+        e.preventDefault()
+        return
+      }
+
+      if (e.code === "Tab" && primarySelectedId) {
+        e.preventDefault()
+        handleAddChildNode(primarySelectedId)
+        return
+      }
     },
-    [readonly, selectedNodeId, nodes, onAddNode, applyCanvasTool]
+    [
+      readonly,
+      primarySelectedId,
+      nodes,
+      onAddNode,
+      onDeleteNode,
+      applyCanvasTool,
+      selectedNodeIds,
+      handleAddSiblingNode,
+      handleAddChildNode,
+    ]
   )
+
+  const handleSelectAllNodes = useCallback(() => {
+    if (readonly || nodes.length === 0) return
+    setSelectedNodeIds(new Set(nodes.map((n) => n.id)))
+  }, [readonly, nodes])
 
   return (
     <div
       ref={containerRef}
       tabIndex={readonly ? undefined : -1}
-      className="flex h-full min-h-0 flex-col gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="flex h-full min-h-0 flex-col gap-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       onPointerEnter={() => {
         pointerInsideMapRef.current = true
       }}
@@ -659,27 +1088,6 @@ export function MindMap({
       }
       onKeyDown={readonly ? undefined : handleKeyDown}
     >
-      {!readonly && (
-        <div className="flex gap-2 items-center flex-wrap">
-          <Input
-            value={newNodeText}
-            onChange={(e) => setNewNodeText(e.target.value)}
-            placeholder="نص العقدة الجديدة..."
-            className="flex-1 min-w-[160px]"
-            onKeyDown={(e) => { if (e.key === "Enter") handleAddNode() }}
-          />
-          <Button onClick={handleAddNode} disabled={!newNodeText.trim()} size="sm">
-            <Plus className="w-4 h-4 ml-1" />
-            إضافة عقدة
-          </Button>
-          {connecting && (
-            <span className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/30 px-3 py-1.5 rounded-lg">
-              اختر العقدة الهدف للتوصيل
-            </span>
-          )}
-        </div>
-      )}
-
       <div
         ref={mapSurfaceRef}
         className="relative flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain rounded-xl border border-border"
@@ -706,7 +1114,7 @@ export function MindMap({
         <div
           ref={toolbarChromeRef}
           role="toolbar"
-          aria-label="أدوات الخريطة الذهنية"
+          aria-label={t("mindMap.toolbarLabel")}
           className={`pointer-events-auto absolute z-20 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-md backdrop-blur-sm ${
             draggingToolbar ? "cursor-grabbing" : ""
           }`}
@@ -715,8 +1123,8 @@ export function MindMap({
           <button
             type="button"
             className="flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground active:cursor-grabbing"
-            aria-label="سحب لإعادة موضع شريط الأدوات"
-            title="سحب لإعادة الموضع — نقر مزدوج لإعادة التعيين"
+            aria-label={t("mindMap.dragToolbar")}
+            title={t("mindMap.dragToolbarHint")}
             onPointerDown={handleToolbarGripPointerDown}
             onDoubleClick={(e) => {
               e.preventDefault()
@@ -739,7 +1147,7 @@ export function MindMap({
                 variant={canvasTool === "select" ? "secondary" : "ghost"}
                 size="icon"
                 className="w-8 h-8 shrink-0"
-                title="تحديد — سحب الصناديق (اختصار: مفتاح V)"
+                title={t("mindMap.selectTool")}
                 aria-pressed={canvasTool === "select"}
                 onMouseDown={(e) => {
                   e.preventDefault()
@@ -757,7 +1165,7 @@ export function MindMap({
                 variant={canvasTool === "pan" ? "secondary" : "ghost"}
                 size="icon"
                 className="w-8 h-8 shrink-0"
-                title="يد — تحريك اللوحة من المنطقة الفارغة (اختصار: مفتاح D)"
+                title={t("mindMap.panTool")}
                 aria-pressed={canvasTool === "pan"}
                 onMouseDown={(e) => {
                   e.preventDefault()
@@ -771,6 +1179,63 @@ export function MindMap({
                 <Hand className="w-3.5 h-3.5" />
               </Button>
             </div>
+          )}
+          {!readonly && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title={t("mindMap.addNode")}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleAddNode()
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {!readonly && (
+            <Button
+              type="button"
+              variant={selectedNodeIds.size === nodes.length && nodes.length > 0 ? "secondary" : "outline"}
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              title={t("mindMap.selectAllHint")}
+              aria-label={t("mindMap.selectAll")}
+              disabled={nodes.length === 0}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleSelectAllNodes()
+              }}
+            >
+              <BoxSelect className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {connecting && (
+            <span className="flex h-8 max-w-[10rem] items-center truncate rounded border border-amber-400/30 bg-amber-400/10 px-2 text-[10px] text-amber-400">
+              {t("mindMap.connectingHint")}
+            </span>
+          )}
+          {!readonly && multiSelectHeld && (
+            <span className="flex h-8 items-center rounded border border-violet-500/40 bg-violet-500/10 px-2 text-[11px] text-violet-300">
+              {t("mindMap.multiSelectMode")}
+            </span>
+          )}
+          {!readonly && selectedNodeIds.size > 0 && (
+            <span className="flex h-8 items-center rounded border border-primary/30 bg-primary/10 px-2 text-[11px] text-primary">
+              {t("mindMap.selectedCount", { count: selectedNodeIds.size })}
+            </span>
           )}
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleZoomIn}>
             <ZoomIn className="w-3.5 h-3.5" />
@@ -792,11 +1257,17 @@ export function MindMap({
           style={{
             cursor: panning
               ? "grabbing"
+              : marquee
+                ? "crosshair"
               : connecting
                 ? "crosshair"
-                : spaceHeld || canvasTool === "pan"
-                  ? "grab"
-                  : "default",
+                : multiSelectHeld
+                  ? "crosshair"
+                  : spaceHeld || canvasTool === "pan"
+                    ? "grab"
+                    : effectiveCanvasTool === "select"
+                      ? "crosshair"
+                      : "default",
           }}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
           onMouseDown={handleSvgMouseDown}
@@ -804,6 +1275,7 @@ export function MindMap({
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
+          onContextMenu={handleCanvasContextMenu}
         >
           <defs>
             <marker
@@ -816,7 +1288,7 @@ export function MindMap({
             >
               <polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.25)" />
             </marker>
-            {NODE_COLORS.map((c, i) => (
+            {MIND_MAP_NODE_COLORS.map((c, i) => (
               <filter key={i} id={`glow-${i}`}>
                 <feGaussianBlur stdDeviation="4" result="coloredBlur" />
                 <feMerge>
@@ -833,30 +1305,22 @@ export function MindMap({
             .map((node) => {
               const parent = nodes.find((p) => p.id === node.parentId)
               if (!parent) return null
-              const colorSet = getColorSet(node.color)
+              const colorSet = getMindMapColorSet(node.color)
+              const from = getMindMapNodeAnchor(parent)
+              const to = getMindMapNodeAnchor(node)
+              const pathD = edgePath(from.cx, from.cy, to.cx, to.cy)
               return (
                 <g key={`edge-${node.id}`}>
                   <path
-                    d={edgePath(
-                      { ...parent, x: parent.x + NODE_W / 2, y: parent.y + NODE_H / 2 },
-                      { ...node, x: node.x + NODE_W / 2, y: node.y + NODE_H / 2 }
-                    )}
+                    d={pathD}
                     fill="none"
                     stroke={colorSet.bg}
                     strokeWidth="2"
                     strokeOpacity="0.5"
                     markerEnd="url(#arrowhead)"
                   />
-                  {/* Animated dot along the edge */}
                   <circle r="3" fill={colorSet.bg} opacity="0.7">
-                    <animateMotion
-                      dur="2.5s"
-                      repeatCount="indefinite"
-                      path={edgePath(
-                        { ...parent, x: parent.x + NODE_W / 2, y: parent.y + NODE_H / 2 },
-                        { ...node, x: node.x + NODE_W / 2, y: node.y + NODE_H / 2 }
-                      )}
-                    />
+                    <animateMotion dur="2.5s" repeatCount="indefinite" path={pathD} />
                   </circle>
                 </g>
               )
@@ -869,10 +1333,12 @@ export function MindMap({
               .map((node) => {
                 const parent = nodes.find((p) => p.id === node.parentId)
                 if (!parent) return null
-                const sx = parent.x + NODE_W / 2
-                const sy = parent.y + NODE_H / 2
-                const tx = node.x + NODE_W / 2
-                const ty = node.y + NODE_H / 2
+                const from = getMindMapNodeAnchor(parent)
+                const to = getMindMapNodeAnchor(node)
+                const sx = from.cx
+                const sy = from.cy
+                const tx = to.cx
+                const ty = to.cy
                 const midX = (sx + tx) / 2
                 const midY = (sy + ty) / 2
                 return (
@@ -908,23 +1374,37 @@ export function MindMap({
 
           {/* Nodes */}
           {nodes.map((node) => {
-            const colorSet = getColorSet(node.color)
-            const colorIdx = NODE_COLORS.findIndex((c) => c.bg === node.color)
+            const layout = getMindMapNodeLayout(node)
+            const { bodyW, bodyH, bodyR, noteH, totalH, role } = layout
+            const noteText = node.note?.trim() ?? ""
+            const colorSet = getMindMapColorSet(node.color)
+            const colorIdx = MIND_MAP_NODE_COLORS.findIndex((c) => c.bg === node.color)
             const isHovered = hoveredNode === node.id
-            const isSelected = selectedNodeId === node.id
+            const isSelected = selectedNodeIds.has(node.id)
+            const isSearchMatch = searchLower ? searchMatchIds.has(node.id) : false
+            const isSearchMiss = searchLower ? !isSearchMatch : false
+            const isDraggingThis = activeDragIds.includes(node.id)
             const isConnectSource = connecting?.fromId === node.id
+            const maxChars = role === "main" ? 16 : 12
+            const displayText =
+              node.text.length > maxChars ? node.text.slice(0, maxChars) + "…" : node.text
+            const linkedMap =
+              node.linkedMapId && allMaps.length > 0
+                ? allMaps.find((m) => m.id === node.linkedMapId)
+                : null
 
             return (
               <g
                 key={node.id}
                 transform={`translate(${node.x}, ${node.y})`}
                 onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
+                onContextMenu={(e) => handleNodeContextMenu(e, node.id)}
                 onDoubleClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
                   if (readonly) return
                   setConnecting(null)
-                  setSelectedNodeId(node.id)
+                  setSelectedNodeIds(new Set([node.id]))
                   setEditingNode(node.id)
                 }}
                 onMouseEnter={() => setHoveredNode(node.id)}
@@ -932,34 +1412,55 @@ export function MindMap({
                 style={{
                   cursor: readonly
                     ? "default"
-                    : dragging === node.id
+                    : isDraggingThis
                       ? "grabbing"
                       : connecting
                         ? "pointer"
                         : "grab",
                 }}
               >
-                {/* Glow effect */}
-                {(isHovered || isConnectSource || isSelected) && (
+                <rect
+                  width={bodyW}
+                  height={totalH}
+                  fill="transparent"
+                  className="pointer-events-all"
+                />
+
+                {(isHovered || isConnectSource || isSelected || isSearchMatch) && (
                   <rect
                     x="-4"
                     y="-4"
-                    width={NODE_W + 8}
-                    height={NODE_H + 8}
-                    rx={NODE_R + 2}
+                    width={bodyW + 8}
+                    height={bodyH + 8}
+                    rx={bodyR + 2}
                     fill={colorSet.glow}
-                    stroke={isSelected && !isConnectSource ? "var(--ring)" : colorSet.bg}
-                    strokeWidth={isSelected && !isConnectSource ? 2 : 1}
-                    strokeOpacity={isSelected && !isConnectSource ? 0.9 : 0.4}
+                    stroke={
+                      isSearchMatch
+                        ? "#22c55e"
+                        : isSelected && !isConnectSource
+                          ? "var(--ring)"
+                          : colorSet.bg
+                    }
+                    strokeWidth={isSearchMatch || (isSelected && !isConnectSource) ? 2 : 1}
+                    strokeOpacity={isSearchMatch || (isSelected && !isConnectSource) ? 0.9 : 0.4}
                     filter={`url(#glow-${Math.max(0, colorIdx)})`}
                   />
                 )}
+                {isSearchMiss && (
+                  <rect
+                    width={bodyW}
+                    height={totalH}
+                    rx={bodyR}
+                    fill="var(--background)"
+                    opacity={0.55}
+                    className="pointer-events-none"
+                  />
+                )}
 
-                {/* Node body */}
                 <rect
-                  width={NODE_W}
-                  height={NODE_H}
-                  rx={NODE_R}
+                  width={bodyW}
+                  height={bodyH}
+                  rx={bodyR}
                   fill="var(--card)"
                   stroke={
                     isConnectSource
@@ -970,28 +1471,49 @@ export function MindMap({
                           ? colorSet.bg
                           : colorSet.border
                   }
-                  strokeWidth={isConnectSource ? 2.5 : isSelected ? 2.5 : isHovered ? 2 : 1.5}
-                  strokeOpacity={isConnectSource ? 1 : isSelected ? 1 : isHovered ? 0.9 : 0.6}
+                  strokeWidth={
+                    role === "main"
+                      ? isConnectSource || isSelected
+                        ? 3
+                        : 2.5
+                      : isConnectSource
+                        ? 2.5
+                        : isSelected
+                          ? 2.5
+                          : isHovered
+                            ? 2
+                            : 1.5
+                  }
+                  strokeOpacity={isConnectSource ? 1 : isSelected ? 1 : isHovered ? 0.9 : 0.65}
                 />
 
-                {/* Left color accent bar */}
-                <rect
-                  x="0"
-                  y="0"
-                  width="4"
-                  height={NODE_H}
-                  rx={NODE_R}
-                  fill={colorSet.bg}
-                />
-                <rect x="2" y="0" width="2" height={NODE_H} fill={colorSet.bg} />
+                {role === "main" ? (
+                  <circle
+                    cx={bodyW - 14}
+                    cy={14}
+                    r={5}
+                    fill={colorSet.bg}
+                    opacity={0.85}
+                    className="pointer-events-none"
+                  />
+                ) : (
+                  <polygon
+                    points={`${bodyW - 4},4 ${bodyW - 4},14 ${bodyW - 14},9`}
+                    fill={colorSet.bg}
+                    opacity={0.75}
+                    className="pointer-events-none"
+                  />
+                )}
 
-                {/* Node text or edit input */}
+                <rect x="0" y="0" width="4" height={bodyH} rx={bodyR} fill={colorSet.bg} />
+                <rect x="2" y="0" width="2" height={bodyH} fill={colorSet.bg} />
+
                 {editingNode === node.id && !readonly ? (
-                  <foreignObject x="12" y="8" width={NODE_W - 20} height={NODE_H - 16}>
+                  <foreignObject x="12" y="8" width={bodyW - 20} height={bodyH - 16}>
                     <input
                       type="text"
                       defaultValue={node.text}
-                      className="w-full h-full bg-transparent border-none outline-none text-sm text-card-foreground"
+                      className="w-full h-full bg-transparent border-none outline-none text-sm text-card-foreground font-medium"
                       autoFocus
                       onClick={(e) => e.stopPropagation()}
                       onBlur={(e) => {
@@ -1009,71 +1531,153 @@ export function MindMap({
                   </foreignObject>
                 ) : (
                   <text
-                    x={NODE_W / 2 + 4}
-                    y={NODE_H / 2}
+                    x={bodyW / 2 + 2}
+                    y={bodyH / 2}
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fill="var(--card-foreground)"
-                    fontSize="12"
+                    fontSize={role === "main" ? 13 : 11}
+                    fontWeight={role === "main" ? 600 : 400}
                     fontFamily="inherit"
                     className="pointer-events-none select-none"
                   >
-                    {node.text.length > 14 ? node.text.slice(0, 14) + "…" : node.text}
+                    {displayText}
                   </text>
                 )}
 
-                {/* Action buttons (visible on hover) */}
+                {noteText && noteH > 0 && (
+                  <g transform={`translate(0, ${bodyH + 6})`}>
+                    <rect
+                      width={bodyW}
+                      height={noteH - 6}
+                      rx={6}
+                      fill={colorSet.glow}
+                      stroke={colorSet.border}
+                      strokeWidth={1}
+                      strokeOpacity={0.35}
+                    />
+                    <foreignObject x={0} y={0} width={bodyW} height={noteH - 6}>
+                      <div className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground break-words line-clamp-4">
+                        {noteText}
+                      </div>
+                    </foreignObject>
+                  </g>
+                )}
+
                 {!readonly && isHovered && (
                   <g onMouseDown={(e) => e.stopPropagation()}>
-                    {/* Delete */}
                     <g
-                      transform={`translate(${NODE_W - 10}, -10)`}
-                      onClick={(e) => { e.stopPropagation(); onDeleteNode(node.id) }}
+                      transform={`translate(${bodyW - 10}, -10)`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteNode(node.id)
+                      }}
                       className="cursor-pointer"
                     >
                       <circle r="9" fill="#ef4444" stroke="var(--background)" strokeWidth="1.5" />
-                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="11" fontWeight="bold">×</text>
+                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="11" fontWeight="bold">
+                        ×
+                      </text>
                     </g>
 
-                    {/* Add child */}
                     <g
-                      transform={`translate(${NODE_W / 2}, ${NODE_H + 12})`}
-                      onClick={(e) => { e.stopPropagation(); handleAddChildNode(node.id) }}
+                      transform={`translate(${bodyW / 2}, ${totalH + 12})`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAddChildNode(node.id)
+                      }}
                       className="cursor-pointer"
                     >
                       <circle r="9" fill={colorSet.bg} stroke="var(--background)" strokeWidth="1.5" />
-                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="13">+</text>
+                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="13">
+                        +
+                      </text>
                     </g>
 
-                    {/* Connect */}
                     <g
-                      transform={`translate(${NODE_W + 10}, ${NODE_H / 2})`}
+                      transform={`translate(${bodyW + 10}, ${bodyH / 2})`}
                       onClick={(e) => handleConnectClick(e, node.id)}
                       className="cursor-pointer"
                     >
                       <title>
-                        {node.parentId
-                          ? "ربط كمصدر ثم اختيار هدف — Shift+نقر لفك الربط من على الخط"
-                          : "ربط: انقر كمصدر ثم انقر على العقدة الهدف"}
+                        {node.parentId ? t("mindMap.linkHintActive") : t("mindMap.linkHint")}
                       </title>
                       <circle r="9" fill="#8b5cf6" stroke="var(--background)" strokeWidth="1.5" />
-                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="9">↔</text>
+                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="9">
+                        ↔
+                      </text>
                     </g>
 
-                    {/* Edit text */}
                     <g
-                      transform={`translate(-10, ${NODE_H / 2})`}
-                      onClick={(e) => { e.stopPropagation(); setEditingNode(node.id) }}
+                      transform={`translate(-10, ${bodyH / 2})`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingNode(node.id)
+                      }}
                       className="cursor-pointer"
                     >
                       <circle r="9" fill="#3b82f6" stroke="var(--background)" strokeWidth="1.5" />
-                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="9">✎</text>
+                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="9">
+                        ✎
+                      </text>
                     </g>
+                  </g>
+                )}
+
+                {linkedMap && onNavigateToMap && (
+                  <g
+                    transform={`translate(${bodyW / 2}, -18)`}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onNavigateToMap(linkedMap.id)
+                    }}
+                    className="cursor-pointer"
+                    style={{ pointerEvents: "all" }}
+                  >
+                    <title>
+                      {t("mindMap.goToLinkedMap", {
+                        title: linkedMap.title || t("mindMap.defaultMapTitle"),
+                      })}
+                    </title>
+                    <circle
+                      r="12"
+                      fill="#10b981"
+                      stroke="var(--background)"
+                      strokeWidth="2"
+                      opacity={isHovered ? 1 : 0.95}
+                    />
+                    <text
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="white"
+                      fontSize="12"
+                      fontWeight="bold"
+                    >
+                      ↗
+                    </text>
                   </g>
                 )}
               </g>
             )
           })}
+
+          {marquee && (() => {
+            const box = normalizeWorldRect(marquee.x1, marquee.y1, marquee.x2, marquee.y2)
+            return (
+              <rect
+                x={box.x}
+                y={box.y}
+                width={Math.max(box.w, 1)}
+                height={Math.max(box.h, 1)}
+                fill="rgba(59, 130, 246, 0.14)"
+                stroke="rgba(59, 130, 246, 0.9)"
+                strokeWidth={1.5}
+                strokeDasharray="7 4"
+                pointerEvents="none"
+              />
+            )
+          })()}
 
           {/* Empty state */}
           {nodes.length === 0 && (
@@ -1095,7 +1699,7 @@ export function MindMap({
                 fontSize="11"
                 opacity="0.6"
               >
-                اسحب للتنقل • عجلة الماوس للتكبير • + لإضافة فرع
+                {t("mindMap.contextMenuHint")} • + لإضافة فرع
               </text>
             </g>
           )}
@@ -1104,9 +1708,46 @@ export function MindMap({
 
       {!readonly && nodes.length > 0 && (
         <p className="text-xs text-muted-foreground text-center">
-          اسحب العقدة لنقلها — حرّك اللوحة من الفراغ في وضع اليد • المسافة = يد مؤقتة • مرتين للتحرير • ↔ لربط عقدتين • فك الربط: الزر البرتقالي على منتصف الخط بين العقدتين (أو Shift+نقر على ↔) • V / D • Ctrl+C / Ctrl+V
+          {t("mindMap.helpHint")}
         </p>
       )}
+
+      <MindMapNodeMenu
+        menu={contextMenu}
+        node={
+          contextMenu?.nodeId
+            ? (nodes.find((n) => n.id === contextMenu.nodeId) ?? null)
+            : null
+        }
+        allMaps={allMaps}
+        folders={folders}
+        currentMapId={currentMapId}
+        images={images}
+        wordPages={wordPages}
+        keyPoints={keyPoints}
+        expandingNodeId={expandingNodeId}
+        onClose={() => setContextMenu(null)}
+        onUpdateNode={onUpdateNode}
+        onExpandNodeAi={onExpandNodeAi}
+        onDuplicateSubtree={onDuplicateSubtree}
+        onOpenLessonTab={onOpenLessonTab}
+        onNavigateToMap={onNavigateToMap}
+        onAddChild={handleAddChildNode}
+        onAddSibling={handleAddSiblingNode}
+        onEditNode={(id) => setEditingNode(id)}
+        onDeleteNode={(id) => {
+          onDeleteNode(id)
+          setSelectedNodeIds((prev) => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        }}
+        onStartConnect={(id) => setConnecting({ fromId: id })}
+        onUnlinkParent={(id) => onUpdateNode(id, { parentId: null })}
+        onAddNodeAt={handleAddNodeAt}
+        onSelectAll={handleSelectAllNodes}
+      />
     </div>
   )
 }

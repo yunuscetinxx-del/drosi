@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Trash2, Image as ImageIcon, Network, FileText } from "lucide-react"
+import { useTranslations } from "@/components/locale-provider"
+import { countMindMapNodes } from "@/lib/mind-maps-utils"
 
 interface LessonCardProps {
   lesson: Lesson
@@ -14,8 +16,10 @@ interface LessonCardProps {
 }
 
 export function LessonCard({ lesson, isSelected, onSelect, onDelete }: LessonCardProps) {
+  const { t, intlLocale } = useTranslations()
+
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("ar-SA", {
+    return new Intl.DateTimeFormat(intlLocale, {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -44,15 +48,17 @@ export function LessonCard({ lesson, isSelected, onSelect, onDelete }: LessonCar
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
                 <FileText className="w-3 h-3" />
-                {lesson.keyPoints.length} نقاط
+                {lesson.keyPoints.length} {t("lessonCard.points")}
               </span>
               <span className="flex items-center gap-1">
                 <ImageIcon className="w-3 h-3" />
-                {lesson.images.length} صور
+                {lesson.images.length} {t("lessonCard.images")}
               </span>
               <span className="flex items-center gap-1">
                 <Network className="w-3 h-3" />
-                {lesson.mindMapNodes.length} عقد
+                {(lesson.mindMaps?.length ?? 0) > 0
+                  ? `${lesson.mindMaps.length} ${t("lessonCard.maps")}`
+                  : `${countMindMapNodes(lesson.mindMaps ?? [])} ${t("lessonCard.nodes")}`}
               </span>
             </div>
           </div>
@@ -70,7 +76,7 @@ export function LessonCard({ lesson, isSelected, onSelect, onDelete }: LessonCar
         </div>
         <div className="mt-3 pt-3 border-t border-border">
           <span className="text-xs text-muted-foreground">
-            آخر تحديث: {formatDate(lesson.updatedAt)}
+            {t("lessonCard.lastUpdated")} {formatDate(lesson.updatedAt)}
           </span>
         </div>
       </CardContent>

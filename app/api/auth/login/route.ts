@@ -26,25 +26,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "البريد وكلمة المرور مطلوبان" }, { status: 400 })
   }
 
-  const user = await prisma.user.findUnique({ where: { email } })
-  if (!user) {
-    return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 })
+  try {
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) {
+      return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 })
+    }
+
+    const match = await bcrypt.compare(password, user.passwordHash)
+    if (!match) {
+      return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 })
+    }
+
+    const token = await createSessionToken(user.id, user.email, user.isAdmin)
+    const cookieStore = await cookies()
+    cookieStore.set(AUTH_SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_MAX_AGE,
+      secure: process.env.NODE_ENV === "production",
+    })
+
+    return NextResponse.json({
+      ok: true,
+      token,
+      user: { email: user.email, isAdmin: user.isAdmin },
+    })
+  } catch (e) {
+    console.error("[login]", e)
+    return NextResponse.json({ error: "تعذّر الاتصال بقاعدة البيانات" }, { status: 500 })
   }
-
-  const match = await bcrypt.compare(password, user.passwordHash)
-  if (!match) {
-    return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 })
-  }
-
-  const token = await createSessionToken(user.id, user.email)
-  const cookieStore = await cookies()
-  cookieStore.set(AUTH_SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-    secure: process.env.NODE_ENV === "production",
-  })
-
-  return NextResponse.json({ ok: true, user: { email: user.email } })
 }

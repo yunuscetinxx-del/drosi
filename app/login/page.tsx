@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { BookOpen, Loader2 } from "lucide-react"
+import { useTranslations } from "@/components/locale-provider"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get("next") || "/"
+  const { t } = useTranslations()
 
   const [mode, setMode] = useState<"login" | "register">("login")
   const [email, setEmail] = useState("")
@@ -32,7 +35,7 @@ function LoginForm() {
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        setError(data.error || "حدث خطأ")
+        setError(data.error || t("common.error"))
         return
       }
       router.replace(next.startsWith("/") ? next : "/")
@@ -44,20 +47,23 @@ function LoginForm() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-background p-6">
+      <div className="absolute top-4 end-4">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10">
             <BookOpen className="h-7 w-7 text-primary" aria-hidden />
           </div>
-          <h1 className="text-2xl font-bold">دروسي</h1>
+          <h1 className="text-2xl font-bold">{t("app.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "login" ? "سجّل الدخول لمتابعة دروسك" : "أنشئ حساباً جديداً"}
+            {mode === "login" ? t("auth.loginSubtitle") : t("auth.registerSubtitle")}
           </p>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">البريد الإلكتروني</Label>
+            <Label htmlFor="email">{t("auth.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -70,7 +76,7 @@ function LoginForm() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">كلمة المرور</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -83,7 +89,7 @@ function LoginForm() {
               className="text-left"
             />
             {mode === "register" && (
-              <p className="text-xs text-muted-foreground">6 أحرف على الأقل</p>
+              <p className="text-xs text-muted-foreground">{t("auth.passwordHint")}</p>
             )}
           </div>
 
@@ -97,12 +103,12 @@ function LoginForm() {
             {loading ? (
               <>
                 <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                جاري المعالجة...
+                {t("common.processing")}
               </>
             ) : mode === "login" ? (
-              "تسجيل الدخول"
+              t("auth.login")
             ) : (
-              "إنشاء الحساب"
+              t("auth.register")
             )}
           </Button>
         </form>
@@ -110,7 +116,7 @@ function LoginForm() {
         <p className="text-center text-sm text-muted-foreground">
           {mode === "login" ? (
             <>
-              ليس لديك حساب؟{" "}
+              {t("auth.noAccount")}{" "}
               <button
                 type="button"
                 className="font-medium text-primary underline-offset-4 hover:underline"
@@ -119,12 +125,12 @@ function LoginForm() {
                   setError(null)
                 }}
               >
-                سجّل الآن
+                {t("auth.registerNow")}
               </button>
             </>
           ) : (
             <>
-              لديك حساب؟{" "}
+              {t("auth.hasAccount")}{" "}
               <button
                 type="button"
                 className="font-medium text-primary underline-offset-4 hover:underline"
@@ -133,12 +139,11 @@ function LoginForm() {
                   setError(null)
                 }}
               >
-                تسجيل الدخول
+                {t("auth.login")}
               </button>
             </>
           )}
         </p>
-
       </div>
     </div>
   )

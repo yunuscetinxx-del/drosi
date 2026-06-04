@@ -3,12 +3,16 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import {
   Lesson,
-  MindMapNode,
   LessonImage,
   ImageAnnotation,
   ImageAIAnalysis,
 } from "@/types/lesson"
 import { reviveLessonsFromJSON } from "@/lib/lessons-revive"
+import {
+  clearSelectedLessonId,
+  readSelectedLessonId,
+  writeSelectedLessonId,
+} from "@/lib/app-navigation"
 
 const generateId = () => Math.random().toString(36).substring(2, 11)
 
@@ -70,6 +74,9 @@ export function useLessons() {
         }
         if (!cancelled) {
           setLessons(list)
+          const savedId = readSelectedLessonId()
+          const savedLesson = savedId ? list.find((l) => l.id === savedId) : null
+          if (savedLesson) setSelectedLesson(savedLesson)
           setIsLoaded(true)
         }
       } catch {
@@ -111,16 +118,22 @@ export function useLessons() {
     }
   }, [lessons, isLoaded])
 
-  const addLesson = useCallback((lesson: Omit<Lesson, "id" | "createdAt" | "updatedAt" | "mindMapSaved">) => {
+  const addLesson = useCallback((lesson: Omit<Lesson, "id" | "createdAt" | "updatedAt">) => {
     const newLesson: Lesson = {
       ...lesson,
       id: generateId(),
-      mindMapSaved: false,
+      mindMaps: lesson.mindMaps ?? [],
       createdAt: new Date(),
       updatedAt: new Date(),
     }
     setLessons((prev) => [...prev, newLesson])
     return newLesson
+  }, [])
+
+  const selectLesson = useCallback((lesson: Lesson | null) => {
+    setSelectedLesson(lesson)
+    if (lesson) writeSelectedLessonId(lesson.id)
+    else clearSelectedLessonId()
   }, [])
 
   const updateLesson = useCallback((id: string, updates: Partial<Lesson>) => {
@@ -136,7 +149,13 @@ export function useLessons() {
 
   const deleteLesson = useCallback((id: string) => {
     setLessons((prev) => prev.filter((lesson) => lesson.id !== id))
-    setSelectedLesson((prev) => (prev?.id === id ? null : prev))
+    setSelectedLesson((prev) => {
+      if (prev?.id === id) {
+        clearSelectedLessonId()
+        return null
+      }
+      return prev
+    })
   }, [])
 
   const addImage = useCallback((lessonId: string, imageUrl: string) => {
@@ -340,112 +359,10 @@ export function useLessons() {
     []
   )
 
-  const addMindMapNode = useCallback(
-    (lessonId: string, node: Omit<MindMapNode, "id">) => {
-      const newNode: MindMapNode = { ...node, id: generateId() }
-      setLessons((prev) =>
-        prev.map((lesson) =>
-          lesson.id === lessonId
-            ? {
-                ...lesson,
-                mindMapNodes: [...lesson.mindMapNodes, newNode],
-                mindMapSaved: false,
-                updatedAt: new Date(),
-              }
-            : lesson
-        )
-      )
-      setSelectedLesson((prev) =>
-        prev?.id === lessonId
-          ? {
-              ...prev,
-              mindMapNodes: [...prev.mindMapNodes, newNode],
-              mindMapSaved: false,
-              updatedAt: new Date(),
-            }
-          : prev
-      )
-      return newNode
-    },
-    []
-  )
-
-  const updateMindMapNode = useCallback(
-    (lessonId: string, nodeId: string, updates: Partial<MindMapNode>) => {
-      setLessons((prev) =>
-        prev.map((lesson) =>
-          lesson.id === lessonId
-            ? {
-                ...lesson,
-                mindMapNodes: lesson.mindMapNodes.map((node) =>
-                  node.id === nodeId ? { ...node, ...updates } : node
-                ),
-                mindMapSaved: false,
-                updatedAt: new Date(),
-              }
-            : lesson
-        )
-      )
-      setSelectedLesson((prev) =>
-        prev?.id === lessonId
-          ? {
-              ...prev,
-              mindMapNodes: prev.mindMapNodes.map((node) =>
-                node.id === nodeId ? { ...node, ...updates } : node
-              ),
-              mindMapSaved: false,
-              updatedAt: new Date(),
-            }
-          : prev
-      )
-    },
-    []
-  )
-
-  const deleteMindMapNode = useCallback((lessonId: string, nodeId: string) => {
-    setLessons((prev) =>
-      prev.map((lesson) =>
-        lesson.id === lessonId
-          ? {
-              ...lesson,
-              mindMapNodes: lesson.mindMapNodes.filter((node) => node.id !== nodeId),
-              mindMapSaved: false,
-              updatedAt: new Date(),
-            }
-          : lesson
-      )
-    )
-    setSelectedLesson((prev) =>
-      prev?.id === lessonId
-        ? {
-            ...prev,
-            mindMapNodes: prev.mindMapNodes.filter((node) => node.id !== nodeId),
-            mindMapSaved: false,
-            updatedAt: new Date(),
-          }
-        : prev
-    )
-  }, [])
-
-  const saveMindMap = useCallback((lessonId: string) => {
-    setLessons((prev) =>
-      prev.map((lesson) =>
-        lesson.id === lessonId
-          ? { ...lesson, mindMapSaved: true, updatedAt: new Date() }
-          : lesson
-      )
-    )
-    setSelectedLesson((prev) =>
-      prev?.id === lessonId
-        ? { ...prev, mindMapSaved: true, updatedAt: new Date() }
-        : prev
-    )
-  }, [])
-
   return {
     lessons,
     selectedLesson,
-    setSelectedLesson,
+    setSelectedLesson: selectLesson,
     isLoaded,
     addLesson,
     updateLesson,
@@ -456,9 +373,5 @@ export function useLessons() {
     updateImageAnnotation,
     removeImageAnnotation,
     setImageAIAnalysis,
-    addMindMapNode,
-    updateMindMapNode,
-    deleteMindMapNode,
-    saveMindMap,
   }
 }

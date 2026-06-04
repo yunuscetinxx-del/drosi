@@ -18,7 +18,9 @@ cp .env.example .env.local
 عدّل `.env.local`:
 
 - `DATABASE_URL` — من [Supabase](https://supabase.com) أو أي Postgres (انظر `docs/DATABASE.md`).
+- `NEXT_PUBLIC_SUPABASE_URL` و`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (أو `NEXT_PUBLIC_SUPABASE_ANON_KEY`) من **Project Settings → API** في Supabase.
 - `AUTH_SECRET` — سلسلة عشوائية طويلة (16+ حرفاً).
+- `ADMIN_EMAIL` / `ADMIN_PASSWORD` — اختياري: إنشاء حساب مدير تلقائياً عند تشغيل الخادم (انظر `docs/DATABASE.md`).
 - `OPENROUTER_API_KEY` — اختياري لتحليل الذكاء الاصطناعي.
 
 ```bash

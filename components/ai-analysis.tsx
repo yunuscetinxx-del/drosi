@@ -1,17 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Lesson, MindMapNode } from "@/types/lesson"
+import { Lesson, MindMapNode, ImageAIAnalysis } from "@/types/lesson"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Sparkles,
   Brain,
@@ -27,11 +20,8 @@ import {
   CheckCircle2,
   ArrowUpRight,
 } from "lucide-react"
-
-const MODELS = {
-  "x-ai/grok-3-mini": { name: "Grok 3 Mini", description: "سريع وقوي للتحليل التعليمي" },
-  "nvidia/llama-nemotron-embed-vl-1b-v2:free": { name: "Llama Nemotron", description: "نموذج متقدم للفهم العميق" },
-} as const
+import { useTranslations } from "@/components/locale-provider"
+import { ImageAiAnalyzer } from "@/components/image-ai-analyzer"
 
 interface AIAnalysis {
   difficulty: string
@@ -46,15 +36,21 @@ interface AIAnalysis {
   summary: string
 }
 
+import { MIND_MAP_NODE_COLORS } from "@/lib/mind-map-node"
+
 interface AIAnalysisProps {
   lesson: Lesson
+  readOnly?: boolean
   onAddMindMapNodes?: (nodes: Omit<MindMapNode, "id">[]) => void
+  onSetImageAIAnalysis?: (imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
+  onAddImageWithAnalysis?: (
+    imageUrl: string,
+    analysis: Omit<ImageAIAnalysis, "analyzedAt">
+  ) => void
+  onAddToNotes?: (text: string) => void
 }
 
-const NODE_COLORS = [
-  "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b",
-  "#ef4444", "#06b6d4", "#ec4899", "#84cc16",
-]
+const NODE_COLORS = MIND_MAP_NODE_COLORS.map((c) => c.bg)
 
 function ScoreRing({ value, color, label }: { value: number; color: string; label: string }) {
   const r = 28
@@ -81,12 +77,12 @@ function ScoreRing({ value, color, label }: { value: number; color: string; labe
   )
 }
 
-function DifficultyBar({ score }: { score: number }) {
+function DifficultyBar({ score, label }: { score: number; label: string }) {
   const color = score <= 3 ? "#10b981" : score <= 6 ? "#f59e0b" : "#ef4444"
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>مستوى الصعوبة</span>
+        <span>{label}</span>
         <span style={{ color }}>{score}/10</span>
       </div>
       <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -132,12 +128,19 @@ function Section({
   )
 }
 
-export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
+export function AIAnalysis({
+  lesson,
+  readOnly = false,
+  onAddMindMapNodes,
+  onSetImageAIAnalysis,
+  onAddImageWithAnalysis,
+  onAddToNotes,
+}: AIAnalysisProps) {
+  const { t } = useTranslations()
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [addedToMap, setAddedToMap] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<keyof typeof MODELS>("x-ai/grok-3-mini")
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -147,16 +150,16 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
       const res = await fetch("/api/analyze-lesson", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lesson, model: selectedModel }),
+        body: JSON.stringify({ lesson }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
-        setError(data.error ?? "حدث خطأ غير متوقع")
+        setError(data.error ?? t("aiAnalysis.errorUnexpected"))
         return
       }
       setAnalysis(data.analysis)
     } catch {
-      setError("تعذّر الاتصال بالخادم")
+      setError(t("aiAnalysis.errorConnection"))
     } finally {
       setLoading(false)
     }
@@ -174,6 +177,8 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
         y: centerY + Math.sin(angle) * 120,
         parentId: null,
         color: NODE_COLORS[i % NODE_COLORS.length],
+        role: i === 0 ? ("main" as const) : ("branch" as const),
+        note: "",
       }
     })
     onAddMindMapNodes(nodes)
@@ -189,6 +194,15 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
 
   return (
     <div className="space-y-4">
+      {!readOnly && onAddToNotes && (
+        <ImageAiAnalyzer
+          images={lesson.images}
+          onSetAIAnalysis={onSetImageAIAnalysis}
+          onAddImageWithAnalysis={onAddImageWithAnalysis}
+          onAddToNotes={onAddToNotes}
+        />
+      )}
+
       {/* Header card */}
       <Card className="border-border overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--secondary)/0.4) 100%)" }}>
         <CardContent className="p-5">
@@ -199,9 +213,9 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
                   <Brain className="w-5 h-5 text-violet-400" />
                 </div>
                 <div>
-                  <h3 className="font-bold">تحليل الذكاء الاصطناعي</h3>
+                  <h3 className="font-bold">{t("aiAnalysis.title")}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    اختر النموذج وقم بتحليل شامل للدرس
+                    {t("aiAnalysis.subtitle")}
                   </p>
                 </div>
               </div>
@@ -214,40 +228,15 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
                 {loading ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    جاري التحليل...
+                    {t("aiAnalysis.analyzing")}
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    {analysis ? "إعادة التحليل" : "تحليل الدرس"}
+                    {analysis ? t("aiAnalysis.reanalyze") : t("aiAnalysis.analyzeLesson")}
                   </>
                 )}
               </Button>
-            </div>
-            
-            {/* Model selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">اختر النموذج</label>
-              <div className="flex gap-2 flex-col sm:flex-row sm:items-end">
-                <Select value={selectedModel} onValueChange={(val) => setSelectedModel(val as keyof typeof MODELS)}>
-                  <SelectTrigger className="w-full sm:flex-1 bg-background/50 border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(MODELS).map(([key, model]) => (
-                      <SelectItem key={key} value={key}>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium">{model.name}</span>
-                          <span className="text-xs text-muted-foreground">{model.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Badge variant="secondary" className="w-fit text-xs">
-                  {MODELS[selectedModel].name}
-                </Badge>
-              </div>
             </div>
           </div>
         </CardContent>
@@ -259,10 +248,10 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           <CardContent className="p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
             <div>
-              <p className="text-sm font-medium text-destructive">خطأ في التحليل</p>
+              <p className="text-sm font-medium text-destructive">{t("aiAnalysis.errorTitle")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                تأكد من إضافة متغير البيئة <code className="bg-secondary px-1 rounded">OPENROUTER_API_KEY</code>
+                {t("aiAnalysis.envHint")} <code className="bg-secondary px-1 rounded">OPENROUTER_API_KEY</code>
               </p>
             </div>
           </CardContent>
@@ -285,8 +274,8 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           <Card className="bg-card border-border">
             <CardContent className="p-4">
               <div className="flex items-center justify-around flex-wrap gap-4">
-                <ScoreRing value={analysis.completeness} color="#3b82f6" label="اكتمال الدرس" />
-                <ScoreRing value={analysis.difficultyScore * 10} color={difficultyColor} label="مستوى الصعوبة" />
+                <ScoreRing value={analysis.completeness} color="#3b82f6" label={t("aiAnalysis.completeness")} />
+                <ScoreRing value={analysis.difficultyScore * 10} color={difficultyColor} label={t("aiAnalysis.difficulty")} />
                 <div className="flex flex-col items-center gap-1">
                   <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#f59e0b22", border: "3px solid #f59e0b" }}>
                     <Clock className="w-6 h-6 text-amber-400" />
@@ -300,11 +289,11 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
                   >
                     {analysis.difficulty}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">مستوى الدرس</span>
+                  <span className="text-xs text-muted-foreground">{t("aiAnalysis.lessonLevel")}</span>
                 </div>
               </div>
               <div className="mt-4">
-                <DifficultyBar score={analysis.difficultyScore} />
+                <DifficultyBar score={analysis.difficultyScore} label={t("aiAnalysis.difficultyLevel")} />
               </div>
             </CardContent>
           </Card>
@@ -314,14 +303,14 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Brain className="w-4 h-4 text-violet-400" />
-                <span className="font-semibold text-sm">ملخص تحليلي</span>
+                <span className="font-semibold text-sm">{t("aiAnalysis.summary")}</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{analysis.summary}</p>
             </CardContent>
           </Card>
 
           {/* Strengths */}
-          <Section icon={CheckCircle2} title="نقاط القوة" color="#10b981">
+          <Section icon={CheckCircle2} title={t("aiAnalysis.strengths")} color="#10b981">
             <ul className="space-y-2">
               {analysis.strengths.map((s, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
@@ -333,7 +322,7 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           </Section>
 
           {/* Improvements */}
-          <Section icon={ArrowUpRight} title="اقتراحات التحسين" color="#f59e0b">
+          <Section icon={ArrowUpRight} title={t("aiAnalysis.improvements")} color="#f59e0b">
             <ul className="space-y-2">
               {analysis.improvements.map((s, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
@@ -345,7 +334,7 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           </Section>
 
           {/* Study tips */}
-          <Section icon={Lightbulb} title="نصائح الدراسة" color="#3b82f6">
+          <Section icon={Lightbulb} title={t("aiAnalysis.studyTips")} color="#3b82f6">
             <ul className="space-y-2">
               {analysis.studyTips.map((s, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
@@ -357,7 +346,7 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           </Section>
 
           {/* Related topics */}
-          <Section icon={BookMarked} title="مواضيع مرتبطة" color="#8b5cf6" defaultOpen={false}>
+          <Section icon={BookMarked} title={t("aiAnalysis.relatedTopics")} color="#8b5cf6" defaultOpen={false}>
             <div className="flex flex-wrap gap-2">
               {analysis.relatedTopics.map((t, i) => (
                 <Badge key={i} variant="secondary" className="text-xs">
@@ -368,7 +357,7 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           </Section>
 
           {/* Mind map suggestions */}
-          <Section icon={Network} title="اقتراحات للخريطة الذهنية" color="#06b6d4" defaultOpen={false}>
+          <Section icon={Network} title={t("aiAnalysis.mindMapSuggestions")} color="#06b6d4" defaultOpen={false}>
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 {analysis.mindMapSuggestions.map((s, i) => (
@@ -393,12 +382,12 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
                   {addedToMap ? (
                     <>
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      تمت الإضافة إلى الخريطة
+                      {t("aiAnalysis.addedToMindMap")}
                     </>
                   ) : (
                     <>
                       <Network className="w-4 h-4" />
-                      إضافة إلى الخريطة الذهنية
+                      {t("aiAnalysis.addToMindMap")}
                     </>
                   )}
                 </Button>
@@ -413,8 +402,8 @@ export function AIAnalysis({ lesson, onAddMindMapNodes }: AIAnalysisProps) {
           <div className="w-16 h-16 mx-auto rounded-2xl bg-violet-500/10 flex items-center justify-center">
             <Sparkles className="w-8 h-8 text-violet-400" />
           </div>
-          <p className="text-muted-foreground text-sm">اضغط على "تحليل الدرس" للحصول على تحليل شامل بالذكاء الاصطناعي</p>
-          <p className="text-xs text-muted-foreground/60">يتضمن: مستوى الصعوبة، نقاط القوة، اقتراحات التحسين، ونصائح الدراسة</p>
+          <p className="text-muted-foreground text-sm">{t("aiAnalysis.emptyHint")}</p>
+          <p className="text-xs text-muted-foreground/60">{t("aiAnalysis.emptyHintDetail")}</p>
         </div>
       )}
     </div>

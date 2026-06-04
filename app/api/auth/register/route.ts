@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         email,
         passwordHash,
         lessons: [],
+        isAdmin: false,
       },
     })
   } catch (e) {
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "تعذّر إنشاء الحساب" }, { status: 500 })
   }
 
-  const token = await createSessionToken(user.id, user.email)
+  const token = await createSessionToken(user.id, user.email, false)
   const cookieStore = await cookies()
   cookieStore.set(AUTH_SESSION_COOKIE, token, {
     httpOnly: true,
@@ -59,5 +60,9 @@ export async function POST(req: NextRequest) {
     secure: process.env.NODE_ENV === "production",
   })
 
-  return NextResponse.json({ ok: true, user: { email: user.email } })
+  return NextResponse.json({
+    ok: true,
+    token,
+    user: { email: user.email, isAdmin: false },
+  })
 }

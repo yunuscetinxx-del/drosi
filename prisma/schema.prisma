@@ -11,10 +11,31 @@ datasource db {
 
 /// مستخدم التطبيق: بريد + كلمة مرور مشفّرة + مصفوفة الدروس كـ JSON (متوافق مع واجهة التطبيق الحالية)
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  lessons      Json
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String        @id @default(uuid())
+  email           String        @unique
+  passwordHash    String
+  lessons         Json
+  calendarEvents  Json          @default("[]")
+  isAdmin         Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  lessonShares    LessonShare[]
+}
+
+/// رابط مشاركة درس: صلاحية قراءة/تعديل + إمكانية النسخ
+model LessonShare {
+  id         String   @id @default(uuid())
+  ownerId    String
+  lessonId   String
+  token      String   @unique
+  permission String   @default("read")
+  allowCopy  Boolean  @default(true)
+  active     Boolean  @default(true)
+  scope      Json?
+  createdAt  DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, lessonId])
+  @@index([token])
 }
