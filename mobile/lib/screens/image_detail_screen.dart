@@ -168,48 +168,64 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
         ],
       ),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
-          InteractiveViewer(
-            maxScale: 5,
-            child: LessonImageView(
-              url: _image.url,
-              fit: BoxFit.contain,
-              height: 300,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: InteractiveViewer(
+                maxScale: 5,
+                child: LessonImageView(
+                  url: _image.url,
+                  fit: BoxFit.contain,
+                  height: 280,
+                ),
+              ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: FilledButton.tonalIcon(
+            child: FilledButton.icon(
               onPressed: _analyzing ? null : _analyze,
               icon: _analyzing
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.auto_awesome),
               label: Text(
-                _analyzing ? 'جارٍ التحليل...' : 'تحليل الصورة بالذكاء الاصطناعي',
+                _analyzing
+                    ? 'جارٍ التحليل...'
+                    : 'تحليل الصورة بالذكاء الاصطناعي',
               ),
             ),
           ),
           if (_image.annotations.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text('التعليقات',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                'التعليقات (${_image.annotations.length})',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
             ),
             ..._image.annotations.map(
-              (a) => ListTile(
-                leading: const Icon(Icons.label_important_outline,
-                    color: Colors.amber),
-                title: Text(a.note),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _removeAnnotation(a.id),
+              (a) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.label_important_outline,
+                        color: Colors.amber),
+                    title: Text(a.note),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _removeAnnotation(a.id),
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -113,19 +113,21 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       children: [
-        _field(_title, 'عنوان الدرس'),
-        const SizedBox(height: 12),
-        _field(_subject, 'المادة'),
-        const SizedBox(height: 12),
-        _field(_description, 'الوصف', maxLines: 3),
+        _SectionLabel('المعلومات الأساسية'),
+        _card([
+          _field(_title, 'عنوان الدرس', icon: Icons.title),
+          const SizedBox(height: 12),
+          _field(_subject, 'المادة', icon: Icons.category_outlined),
+          const SizedBox(height: 12),
+          _field(_description, 'الوصف', maxLines: 3, icon: Icons.notes),
+        ]),
         const SizedBox(height: 20),
         Row(
           children: [
-            Text('النقاط الرئيسية', style: theme.textTheme.titleMedium),
+            _SectionLabel('النقاط الرئيسية'),
             const Spacer(),
             TextButton.icon(
               onPressed: _addKeyPoint,
@@ -135,19 +137,25 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
           ],
         ),
         if (widget.lesson.keyPoints.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('لا توجد نقاط بعد',
-                style: theme.textTheme.bodySmall),
-          )
+          _card([
+            Row(
+              children: [
+                Icon(Icons.lightbulb_outline,
+                    color: Theme.of(context).colorScheme.outline),
+                const SizedBox(width: 8),
+                Text('لا توجد نقاط بعد',
+                    style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ])
         else
           ...widget.lesson.keyPoints.asMap().entries.map(
                 (e) => Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     dense: true,
                     leading: CircleAvatar(
-                      radius: 12,
+                      radius: 13,
                       child: Text('${e.key + 1}',
                           style: const TextStyle(fontSize: 12)),
                     ),
@@ -159,21 +167,27 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
                   ),
                 ),
               ),
-        const SizedBox(height: 16),
-        _field(_summary, 'الملخص', maxLines: 4),
-        const SizedBox(height: 12),
-        _field(_notes, 'الملاحظات', maxLines: 6),
         const SizedBox(height: 20),
-        FilledButton.tonalIcon(
+        _SectionLabel('الملخص والملاحظات'),
+        _card([
+          _field(_summary, 'الملخص', maxLines: 4, icon: Icons.summarize),
+          const SizedBox(height: 12),
+          _field(_notes, 'الملاحظات', maxLines: 6, icon: Icons.sticky_note_2_outlined),
+        ]),
+        const SizedBox(height: 24),
+        FilledButton.icon(
           onPressed: _analyzing ? null : _runAnalysis,
           icon: _analyzing
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white),
                 )
               : const Icon(Icons.auto_awesome),
-          label: Text(_analyzing ? 'جارٍ التحليل...' : 'تحليل الدرس بالذكاء الاصطناعي'),
+          label: Text(_analyzing
+              ? 'جارٍ التحليل...'
+              : 'تحليل الدرس بالذكاء الاصطناعي'),
         ),
         if (_analysis != null) ...[
           const SizedBox(height: 16),
@@ -183,14 +197,53 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
     );
   }
 
-  Widget _field(TextEditingController c, String label, {int maxLines = 1}) {
+  Widget _card(List<Widget> children) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    );
+  }
+
+  Widget _field(TextEditingController c, String label,
+      {int maxLines = 1, IconData? icon}) {
     return TextField(
       controller: c,
       maxLines: maxLines,
       onChanged: (_) => _emit(),
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
+        alignLabelWithHint: maxLines > 1,
+        prefixIcon: icon != null
+            ? Padding(
+                padding: EdgeInsets.only(bottom: maxLines > 1 ? (maxLines - 1) * 22.0 : 0),
+                child: Icon(icon),
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color:
+                  Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
       ),
     );
   }

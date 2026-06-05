@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 import '../models/lesson.dart';
@@ -14,6 +15,8 @@ import '../services/sync_service.dart';
 enum SyncStatus { idle, syncing, offline, error }
 
 class AppState extends ChangeNotifier {
+  static const _themeKey = 'theme_mode';
+
   final _auth = AuthService();
   final _lessons = LessonsService();
   final _connectivity = Connectivity();
@@ -23,6 +26,8 @@ class AppState extends ChangeNotifier {
   bool loading = true;
   String? error;
   String baseUrl = ApiConfig.baseUrl;
+
+  ThemeMode themeMode = ThemeMode.system;
 
   bool online = true;
   SyncStatus syncStatus = SyncStatus.idle;
@@ -40,6 +45,7 @@ class AppState extends ChangeNotifier {
     error = null;
     notifyListeners();
 
+    await _loadThemeMode();
     await ApiConfig.load();
     baseUrl = ApiConfig.baseUrl;
     await ApiClient.instance.init();
@@ -73,6 +79,30 @@ class AppState extends ChangeNotifier {
 
     loading = false;
     notifyListeners();
+  }
+
+  Future<void> _loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_themeKey);
+    themeMode = switch (raw) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _themeKey,
+      switch (mode) {
+        ThemeMode.light => 'light',
+        ThemeMode.dark => 'dark',
+        ThemeMode.system => 'system',
+      },
+    );
   }
 
   Future<void> _refreshConnectivity() async {

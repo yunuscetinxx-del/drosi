@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/json_utils.dart';
 import '../models/mind_map.dart';
+import '../theme/app_theme.dart';
 import '../widgets/mind_map_canvas.dart';
 
 class MindMapEditorScreen extends StatefulWidget {
@@ -187,7 +188,22 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_map.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppTheme.seed, AppTheme.accent],
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+            ),
+          ),
+        ),
+        foregroundColor: Colors.white,
+        title: Text(
+          _map.title.isEmpty ? 'خريطة ذهنية' : _map.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white),
+        ),
         actions: [
           IconButton(
             tooltip: 'إعادة تسمية',

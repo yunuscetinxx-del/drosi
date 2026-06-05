@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// عنوان API الخادم — غيّره من شاشة تسجيل الدخول → إعدادات الخادم.

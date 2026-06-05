@@ -5,6 +5,7 @@ import '../models/lesson_image.dart';
 import '../screens/image_detail_screen.dart';
 import '../screens/lesson_detail_screen.dart' show LessonItemFactory;
 import '../services/image_service.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/lesson_image_view.dart';
 
 class LessonImagesTab extends StatefulWidget {
@@ -247,21 +248,10 @@ class _ImageTile extends StatelessWidget {
 class _EmptyImages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.add_photo_alternate_outlined,
-              size: 64, color: Theme.of(context).disabledColor),
-          const SizedBox(height: 12),
-          const Text('أضف صوراً من الكاميرا أو المعرض'),
-          const SizedBox(height: 4),
-          Text(
-            'تُرفع للموقع تلقائياً عند الحفظ',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
+    return const EmptyState(
+      icon: Icons.add_photo_alternate_outlined,
+      title: 'لا توجد صور بعد',
+      message: 'أضف صوراً من الكاميرا أو المعرض، وتُرفع للموقع تلقائياً عند الحفظ.',
     );
   }
 }

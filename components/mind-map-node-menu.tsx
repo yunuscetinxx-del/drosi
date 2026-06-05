@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type {
   LessonImage,
   MindMap,
@@ -50,6 +50,43 @@ export type MindMapContextMenuState = {
   worldX?: number
   worldY?: number
 } | null
+
+const MENU_VIEWPORT_PAD = 8
+
+/** يضبط موضع القائمة داخل الشاشة — يُقلب للأعلى إن لم يكفِ المساحة تحت المؤشر. */
+function computeMenuPosition(
+  clientX: number,
+  clientY: number,
+  width: number,
+  height: number
+): { left: number; top: number } {
+  if (typeof window === "undefined") {
+    return { left: clientX, top: clientY }
+  }
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const pad = MENU_VIEWPORT_PAD
+
+  let left = clientX
+  if (left + width > vw - pad) {
+    left = Math.max(pad, vw - width - pad)
+  }
+  if (left < pad) left = pad
+
+  let top = clientY
+  const overflowBottom = top + height > vh - pad
+  if (overflowBottom) {
+    const above = clientY - height
+    if (above >= pad) {
+      top = above
+    } else {
+      top = Math.max(pad, vh - height - pad)
+    }
+  }
+  if (top < pad) top = pad
+
+  return { left, top }
+}
 
 interface MindMapNodeMenuProps {
   menu: MindMapContextMenuState
@@ -147,6 +184,10 @@ export function MindMapNodeMenu({
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [lessonLinkOpen, setLessonLinkOpen] = useState(false)
   const [noteDraft, setNoteDraft] = useState("")
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(
+    null
+  )
 
   const lessonLinkTarget = (): MindMapLessonLinkTarget => {
     if (node?.linkedImageId) return { type: "image", id: node.linkedImageId }
@@ -186,6 +227,20 @@ export function MindMapNodeMenu({
     if (noteDialogOpen && node) setNoteDraft(node.note ?? "")
   }, [noteDialogOpen, node])
 
+  useLayoutEffect(() => {
+    if (!menu) {
+      setMenuPosition(null)
+      return
+    }
+    const el = menuRef.current
+    if (!el) {
+      setMenuPosition({ left: menu.clientX, top: menu.clientY })
+      return
+    }
+    const { width, height } = el.getBoundingClientRect()
+    setMenuPosition(computeMenuPosition(menu.clientX, menu.clientY, width, height))
+  }, [menu, node?.id, expandingNodeId])
+
   if (!menu) return null
 
   const isCanvasMenu = !menu.nodeId
@@ -195,16 +250,18 @@ export function MindMapNodeMenu({
   const linkedTitle =
     node?.linkedMapId != null ? allMaps.find((m) => m.id === node.linkedMapId)?.title : null
 
-  const menuStyle = {
-    left: Math.min(menu.clientX, typeof window !== "undefined" ? window.innerWidth - 240 : menu.clientX),
-    top: Math.min(menu.clientY, typeof window !== "undefined" ? window.innerHeight - 420 : menu.clientY),
+  const menuStyle: React.CSSProperties = {
+    left: menuPosition?.left ?? menu.clientX,
+    top: menuPosition?.top ?? menu.clientY,
+    visibility: menuPosition ? "visible" : "hidden",
   }
 
   return (
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} onContextMenu={(e) => e.preventDefault()} />
       <div
-        className="fixed z-[70] min-w-[210px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+        ref={menuRef}
+        className="fixed z-[70] min-w-[210px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
         style={menuStyle}
         onClick={(e) => e.stopPropagation()}
       >

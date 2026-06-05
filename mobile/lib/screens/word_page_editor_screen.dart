@@ -25,6 +25,7 @@ class _WordPageEditorScreenState extends State<WordPageEditorScreen> {
     super.initState();
     _title = TextEditingController(text: widget.page.title);
     _content = TextEditingController(text: widget.page.content);
+    _content.addListener(() => setState(() {}));
   }
 
   @override
@@ -48,31 +49,61 @@ class _WordPageEditorScreenState extends State<WordPageEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final chars = _content.text.length;
+
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
-          controller: _title,
-          onChanged: (_) => _emit(),
-          decoration: const InputDecoration(
-            hintText: 'عنوان الصفحة',
-            border: InputBorder.none,
-          ),
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        title: const Text('تحرير الصفحة'),
       ),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: TextField(
-          controller: _content,
-          onChanged: (_) => _emit(),
-          maxLines: null,
-          expands: true,
-          textAlignVertical: TextAlignVertical.top,
-          decoration: const InputDecoration(
-            hintText: 'اكتب محتوى الصفحة هنا...',
-            border: OutlineInputBorder(),
+        children: [
+          TextField(
+            controller: _title,
+            onChanged: (_) => _emit(),
+            textInputAction: TextInputAction.next,
+            decoration: const InputDecoration(
+              labelText: 'عنوان الصفحة',
+              prefixIcon: Icon(Icons.title),
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          Text(
+            'المحتوى',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: scheme.onSurface.withValues(alpha: 0.6),
+                ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: TextField(
+                controller: _content,
+                onChanged: (_) => _emit(),
+                maxLines: null,
+                minLines: 16,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  hintText: 'اكتب محتوى الصفحة هنا...',
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '$chars حرف',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.45),
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }

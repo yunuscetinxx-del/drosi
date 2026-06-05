@@ -10,6 +10,7 @@ import '../tabs/lesson_details_tab.dart';
 import '../tabs/lesson_images_tab.dart';
 import '../tabs/lesson_mind_maps_tab.dart';
 import '../tabs/lesson_word_pages_tab.dart';
+import '../theme/app_theme.dart';
 
 class LessonDetailScreen extends StatefulWidget {
   const LessonDetailScreen({super.key, required this.lesson});
@@ -46,7 +47,17 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
       if (mounted) {
         setState(() => _dirty = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم الحفظ ومزامنته مع الموقع')),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('تم الحفظ والمزامنة'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
       return true;
@@ -92,6 +103,8 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final gradient = SubjectColors.gradientFor(_lesson.subject);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -105,10 +118,36 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         length: 4,
         child: Scaffold(
           appBar: AppBar(
-            title: Text(
-              _lesson.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            flexibleSpace: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: gradient,
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+              ),
+            ),
+            foregroundColor: Colors.white,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _lesson.title.isEmpty ? 'بدون عنوان' : _lesson.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                if (_lesson.subject.isNotEmpty)
+                  Text(
+                    _lesson.subject,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.normal,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+              ],
             ),
             actions: [
               if (_saving)
@@ -117,23 +156,18 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                   child: SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else
-                IconButton(
-                  tooltip: 'حفظ',
-                  onPressed: _dirty ? _save : null,
-                  icon: Icon(
-                    Icons.save,
-                    color: _dirty ? null : Theme.of(context).disabledColor,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   ),
                 ),
             ],
-            bottom: const TabBar(
+            bottom: TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.center,
-              tabs: [
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
+              tabs: const [
                 Tab(icon: Icon(Icons.description_outlined), text: 'التفاصيل'),
                 Tab(icon: Icon(Icons.image_outlined), text: 'الصور'),
                 Tab(icon: Icon(Icons.account_tree_outlined), text: 'الخرائط'),
@@ -165,6 +199,13 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               ),
             ],
           ),
+          floatingActionButton: _dirty && !_saving
+              ? FloatingActionButton.extended(
+                  onPressed: _save,
+                  icon: const Icon(Icons.save),
+                  label: const Text('حفظ التغييرات'),
+                )
+              : null,
         ),
       ),
     );
