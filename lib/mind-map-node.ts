@@ -81,6 +81,27 @@ export function getMindMapNodeAnchor(node: MindMapNode) {
   }
 }
 
+/** نقاط بداية/نهاية الخط: من يمين الأم إلى يسار الابن (اتجاه السهم) */
+export function getMindMapEdgeEndpoints(parent: MindMapNode, child: MindMapNode) {
+  const pLayout = getMindMapNodeLayout(parent)
+  const cLayout = getMindMapNodeLayout(child)
+  return {
+    fromX: parent.x + pLayout.bodyW,
+    fromY: parent.y + pLayout.bodyH / 2,
+    toX: child.x,
+    toY: child.y + cLayout.bodyH / 2,
+  }
+}
+
+/** مثلث اتجاه على حافة العقدة (يشير للأمام — يمين) */
+export function mindMapNodeArrowPoints(bodyW: number, bodyH: number, role: MindMapNodeRole): string {
+  const cy = bodyH / 2
+  if (role === "main") {
+    return `${bodyW},${cy} ${bodyW - 12},${cy - 7} ${bodyW - 12},${cy + 7}`
+  }
+  return `${bodyW},${cy} ${bodyW - 9},${cy - 5} ${bodyW - 9},${cy + 5}`
+}
+
 export function defaultRoleForNewNode(parentId: string | null): MindMapNodeRole {
   return parentId ? "branch" : "main"
 }

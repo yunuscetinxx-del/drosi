@@ -21,8 +21,10 @@ import {
   MIND_MAP_NODE_COLORS,
   defaultRoleForNewNode,
   getMindMapColorSet,
+  getMindMapEdgeEndpoints,
   getMindMapNodeAnchor,
   getMindMapNodeLayout,
+  mindMapNodeArrowPoints,
 } from "@/lib/mind-map-node"
 import { MindMapNodeMenu, type MindMapContextMenuState } from "@/components/mind-map-node-menu"
 import { Button } from "@/components/ui/button"
@@ -1442,16 +1444,20 @@ export function MindMap({
           onContextMenu={handleCanvasContextMenu}
         >
           <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.25)" />
-            </marker>
+            {MIND_MAP_NODE_COLORS.map((c, i) => (
+              <marker
+                key={`arrow-${i}`}
+                id={`arrowhead-${i}`}
+                markerWidth="12"
+                markerHeight="9"
+                refX="10"
+                refY="4.5"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <polygon points="0 0, 12 4.5, 0 9" fill={c.bg} fillOpacity="0.95" />
+              </marker>
+            ))}
             {MIND_MAP_NODE_COLORS.map((c, i) => (
               <filter key={i} id={`glow-${i}`}>
                 <feGaussianBlur stdDeviation="4" result="coloredBlur" />
@@ -1490,18 +1496,21 @@ export function MindMap({
               const parent = nodes.find((p) => p.id === node.parentId)
               if (!parent) return null
               const colorSet = getMindMapColorSet(node.color)
-              const from = getMindMapNodeAnchor(parent)
-              const to = getMindMapNodeAnchor(node)
-              const pathD = edgePath(from.cx, from.cy, to.cx, to.cy)
+              const colorIdx = Math.max(
+                0,
+                MIND_MAP_NODE_COLORS.findIndex((c) => c.bg === node.color)
+              )
+              const { fromX, fromY, toX, toY } = getMindMapEdgeEndpoints(parent, node)
+              const pathD = edgePath(fromX, fromY, toX, toY)
               return (
                 <g key={`edge-${node.id}`}>
                   <path
                     d={pathD}
                     fill="none"
                     stroke={colorSet.bg}
-                    strokeWidth="2"
-                    strokeOpacity="0.5"
-                    markerEnd="url(#arrowhead)"
+                    strokeWidth="2.5"
+                    strokeOpacity="0.72"
+                    markerEnd={`url(#arrowhead-${colorIdx})`}
                   />
                   <circle r="3" fill={colorSet.bg} opacity="0.7">
                     <animateMotion dur="2.5s" repeatCount="indefinite" path={pathD} />
@@ -1517,12 +1526,10 @@ export function MindMap({
               .map((node) => {
                 const parent = nodes.find((p) => p.id === node.parentId)
                 if (!parent) return null
-                const from = getMindMapNodeAnchor(parent)
-                const to = getMindMapNodeAnchor(node)
-                const sx = from.cx
-                const sy = from.cy
-                const tx = to.cx
-                const ty = to.cy
+                const { fromX: sx, fromY: sy, toX: tx, toY: ty } = getMindMapEdgeEndpoints(
+                  parent,
+                  node
+                )
                 const midX = (sx + tx) / 2
                 const midY = (sy + ty) / 2
                 return (
@@ -1685,23 +1692,20 @@ export function MindMap({
                   strokeOpacity={isConnectSource ? 1 : isSelected ? 1 : isHovered ? 0.9 : 0.65}
                 />
 
-                {role === "main" ? (
-                  <circle
-                    cx={bodyW - 14}
-                    cy={14}
-                    r={5}
-                    fill={colorSet.bg}
-                    opacity={0.85}
-                    className="pointer-events-none"
-                  />
-                ) : (
-                  <polygon
-                    points={`${bodyW - 4},4 ${bodyW - 4},14 ${bodyW - 14},9`}
-                    fill={colorSet.bg}
-                    opacity={0.75}
-                    className="pointer-events-none"
-                  />
-                )}
+                <polygon
+                  points={mindMapNodeArrowPoints(bodyW, bodyH, role)}
+                  fill={colorSet.bg}
+                  opacity={role === "main" ? 0.92 : 0.85}
+                  className="pointer-events-none"
+                />
+                <polygon
+                  points={mindMapNodeArrowPoints(bodyW, bodyH, role)}
+                  fill="none"
+                  stroke={colorSet.border}
+                  strokeWidth={1}
+                  strokeOpacity={0.55}
+                  className="pointer-events-none"
+                />
 
                 <rect x="0" y="0" width="4" height={bodyH} rx={bodyR} fill={colorSet.bg} />
                 <rect x="2" y="0" width="2" height={bodyH} fill={colorSet.bg} />
@@ -1793,17 +1797,19 @@ export function MindMap({
                     </g>
 
                     <g
-                      transform={`translate(${bodyW + 10}, ${bodyH / 2})`}
+                      transform={`translate(${bodyW + 14}, ${bodyH / 2})`}
                       onMouseDown={(e) => handleConnectHandleMouseDown(e, node.id)}
                       className="cursor-crosshair"
                     >
                       <title>
                         {node.parentId ? t("mindMap.linkHintActive") : t("mindMap.linkHint")}
                       </title>
-                      <circle r="9" fill="#8b5cf6" stroke="var(--background)" strokeWidth="1.5" />
-                      <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="9">
-                        ↔
-                      </text>
+                      <circle r="10" fill="#8b5cf6" stroke="var(--background)" strokeWidth="1.5" />
+                      <polygon
+                        points="4,0 10,5 4,10"
+                        fill="white"
+                        transform="translate(-5,-5)"
+                      />
                     </g>
 
                     <g
