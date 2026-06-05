@@ -2,7 +2,7 @@
 
 ## كيف يعمل؟
 
-1. التطبيق يقرأ `https://drosi-production.up.railway.app/mobile-update.json`
+1. التطبيق يقرأ `https://drosi.up.railway.app/mobile-update.json`
 2. يقارن `buildNumber` مع الإصدار المثبّت
 3. إن وُجد إصدار أحدث → إشعار داخل التطبيق مع **رقم الإصدار** و**سجل التغييرات**
 4. المستخدم يضغط **تثبيت التحديث** → تنزيل APK وتثبيته (أندرويد)
