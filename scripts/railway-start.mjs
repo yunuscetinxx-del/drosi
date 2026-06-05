@@ -1,5 +1,5 @@
 import { execSync, spawn } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readdirSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -19,30 +19,96 @@ function maskDatabaseUrl(url) {
   }
 }
 
-function tryMigrate() {
-  const prismaCli = resolve(root, "node_modules/prisma/build/index.js")
+function prismaCli() {
+  const bin = resolve(root, "node_modules/prisma/build/index.js")
+  return existsSync(bin) ? bin : null
+}
+
+function runPrisma(args, { inherit = false } = {}) {
+  const cli = prismaCli()
+  const cmd = cli ? `node "${cli}" ${args}` : `npx prisma ${args}`
   try {
-    if (existsSync(prismaCli)) {
-      execSync(`node "${prismaCli}" migrate deploy`, {
-        stdio: "inherit",
-        env: process.env,
-        cwd: root,
-        shell: true,
-      })
-    } else {
-      execSync("npx prisma migrate deploy", {
-        stdio: "inherit",
-        env: process.env,
-        cwd: root,
-        shell: true,
-      })
-    }
-    return true
+    const output = execSync(cmd, {
+      stdio: inherit ? "inherit" : "pipe",
+      env: process.env,
+      cwd: root,
+      shell: true,
+      encoding: "utf8",
+    })
+    return { ok: true, output: output ?? "" }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error("[start] prisma migrate deploy failed:", msg.split("\n")[0])
-    return false
+    const stdout = err?.stdout?.toString?.() ?? ""
+    const stderr = err?.stderr?.toString?.() ?? ""
+    const message = err instanceof Error ? err.message : String(err)
+    const output = `${stdout}\n${stderr}\n${message}`
+    return { ok: false, output }
   }
+}
+
+function listMigrationNames() {
+  const dir = resolve(root, "prisma/migrations")
+  if (!existsSync(dir)) return []
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .sort()
+}
+
+function isConnectionError(output) {
+  return (
+    output.includes("P1001") ||
+    output.includes("Can't reach database server") ||
+    output.includes("Connection refused") ||
+    output.includes("ECONNREFUSED")
+  )
+}
+
+function isBaselineError(output) {
+  return output.includes("P3005") || output.includes("database schema is not empty")
+}
+
+function baselineMigrations() {
+  const names = listMigrationNames()
+  console.log(
+    `[start] Baselining ${names.length} migration(s) for existing production database…`
+  )
+  for (const name of names) {
+    const result = runPrisma(`migrate resolve --applied "${name}"`)
+    if (!result.ok && !result.output.includes("already")) {
+      console.warn(`[start] migrate resolve ${name}:`, result.output.split("\n")[0])
+    }
+  }
+}
+
+function tryDbPush() {
+  console.log("[start] Syncing schema with prisma db push…")
+  return runPrisma("db push --accept-data-loss", { inherit: true }).ok
+}
+
+function tryDbSetup() {
+  let result = runPrisma("migrate deploy", { inherit: true })
+  if (result.ok) return { ok: true, retry: false }
+
+  const output = result.output
+  if (isConnectionError(output)) {
+    console.error("[start] Database connection failed (will retry if attempts remain)")
+    return { ok: false, retry: true }
+  }
+
+  if (isBaselineError(output)) {
+    baselineMigrations()
+    result = runPrisma("migrate deploy", { inherit: true })
+    if (result.ok) return { ok: true, retry: false }
+
+    if (isConnectionError(result.output)) {
+      return { ok: false, retry: true }
+    }
+  }
+
+  if (tryDbPush()) return { ok: true, retry: false }
+
+  console.error("[start] Database setup failed:", output.split("\n").slice(-4).join("\n"))
+  return { ok: false, retry: isConnectionError(output) }
 }
 
 function startNext() {
@@ -82,33 +148,29 @@ function sleep(ms) {
 const dbUrl = process.env.DATABASE_URL?.trim()
 if (!dbUrl) {
   console.error(
-    "[start] DATABASE_URL is missing. On Railway: Variables → New Variable → Reference → Postgres → DATABASE_URL"
+    "[start] DATABASE_URL is missing. On Railway: Variables → Reference → Postgres → DATABASE_URL"
   )
   process.exit(1)
 }
 
 console.log("[start] DATABASE_URL:", maskDatabaseUrl(dbUrl))
-console.log("[start] Applying migrations (waiting for PostgreSQL if needed)…")
+console.log("[start] Preparing database (migrations / baseline / push)…")
 
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-  if (tryMigrate()) {
+  const result = tryDbSetup()
+  if (result.ok) {
     console.log("[start] Database ready.")
     startNext()
     break
   }
 
-  if (attempt === MAX_ATTEMPTS) {
-    console.error(
-      "[start] Cannot reach database after retries. Check Railway deploy logs and verify:"
-    )
-    console.error("  • Postgres service status is Running")
-    console.error("  • Web service DATABASE_URL references Postgres (not an old/deleted service)")
-    console.error("  • Redeploy after fixing variables")
+  if (!result.retry || attempt === MAX_ATTEMPTS) {
+    console.error("[start] Cannot prepare database. Check Railway deploy logs.")
     process.exit(1)
   }
 
   console.log(
-    `[start] Database unreachable (${attempt}/${MAX_ATTEMPTS}), retry in ${RETRY_DELAY_MS / 1000}s…`
+    `[start] Retrying database setup (${attempt}/${MAX_ATTEMPTS}) in ${RETRY_DELAY_MS / 1000}s…`
   )
   await sleep(RETRY_DELAY_MS)
 }
