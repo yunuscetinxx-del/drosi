@@ -1,7 +1,7 @@
 export const LOCALES = ["ar", "en", "de"] as const
 export type Locale = (typeof LOCALES)[number]
 
-export const DEFAULT_LOCALE: Locale = "ar"
+export const DEFAULT_LOCALE: Locale = "en"
 export const LOCALE_COOKIE = "durusi_locale"
 
 export const LOCALE_LABELS: Record<Locale, string> = {

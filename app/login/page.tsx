@@ -17,6 +17,7 @@ function LoginForm() {
   const { t } = useTranslations()
 
   const [mode, setMode] = useState<"login" | "register">(initialMode)
+  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +33,9 @@ function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(
+          mode === "register" ? { name: name.trim(), email, password } : { email, password }
+        ),
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
@@ -63,6 +66,22 @@ function LoginForm() {
         </div>
 
         <form onSubmit={submit} className="space-y-4">
+          {mode === "register" && (
+            <div className="space-y-2">
+              <Label htmlFor="name">{t("auth.name")}</Label>
+              <Input
+                id="name"
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("auth.namePlaceholder")}
+                required
+                minLength={2}
+                maxLength={80}
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">{t("auth.email")}</Label>
             <Input

@@ -53,7 +53,9 @@ export default function LessonsPage() {
   const [subjectFilter, setSubjectFilter] = useState<string>("all")
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [me, setMe] = useState<{ email: string; isAdmin: boolean } | null>(null)
+  const [me, setMe] = useState<{ name?: string | null; email: string; isAdmin: boolean } | null>(
+    null
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -61,9 +63,15 @@ export default function LessonsPage() {
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" })
         if (!res.ok) return
-        const data = (await res.json()) as { user?: { email: string; isAdmin?: boolean } }
+        const data = (await res.json()) as {
+          user?: { name?: string | null; email: string; isAdmin?: boolean }
+        }
         if (!cancelled && data.user?.email)
-          setMe({ email: data.user.email, isAdmin: data.user.isAdmin === true })
+          setMe({
+            name: data.user.name,
+            email: data.user.email,
+            isAdmin: data.user.isAdmin === true,
+          })
       } catch {
         /* ignore */
       }
@@ -141,11 +149,10 @@ export default function LessonsPage() {
               <LanguageSwitcher />
               {me?.email && (
                 <span
-                  className="hidden max-w-[160px] truncate text-xs text-muted-foreground sm:inline"
-                  dir="ltr"
+                  className="hidden max-w-[180px] truncate text-xs text-muted-foreground sm:inline"
                   title={me.email}
                 >
-                  {me.email}
+                  {me.name?.trim() || me.email}
                 </span>
               )}
               {me?.isAdmin && (

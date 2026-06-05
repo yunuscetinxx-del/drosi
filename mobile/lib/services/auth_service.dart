@@ -8,17 +8,25 @@ class AuthService {
   final _api = ApiClient.instance;
 
   static const _emailKey = 'cached_user_email';
+  static const _nameKey = 'cached_user_name';
   static const _adminKey = 'cached_user_admin';
 
   Future<void> _cacheUser(AuthUser user) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_emailKey, user.email);
     await prefs.setBool(_adminKey, user.isAdmin);
+    final name = user.name?.trim();
+    if (name != null && name.isNotEmpty) {
+      await prefs.setString(_nameKey, name);
+    } else {
+      await prefs.remove(_nameKey);
+    }
   }
 
   Future<void> _clearCachedUser() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_emailKey);
+    await prefs.remove(_nameKey);
     await prefs.remove(_adminKey);
   }
 
@@ -29,7 +37,11 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString(_emailKey);
     if (email == null) return null;
-    return AuthUser(email: email, isAdmin: prefs.getBool(_adminKey) ?? false);
+    return AuthUser(
+      email: email,
+      isAdmin: prefs.getBool(_adminKey) ?? false,
+      name: prefs.getString(_nameKey),
+    );
   }
 
   Future<AuthUser> login(String email, String password) async {
@@ -52,11 +64,15 @@ class AuthService {
     }
   }
 
-  Future<AuthUser> register(String email, String password) async {
+  Future<AuthUser> register(String name, String email, String password) async {
     try {
       final res = await _api.dio.post(
         '/api/auth/register',
-        data: {'email': email.trim(), 'password': password},
+        data: {
+          'name': name.trim(),
+          'email': email.trim(),
+          'password': password,
+        },
       );
       final data = res.data as Map<String, dynamic>;
       final token = data['token'] as String?;

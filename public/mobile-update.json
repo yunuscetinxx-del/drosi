@@ -1,9 +1,9 @@
 {
-  "version": "1.3.0",
-  "buildNumber": 4,
+  "version": "1.5.0",
+  "buildNumber": 6,
   "releasedAt": "2026-06-05",
-  "apkUrl": "https://github.com/yezensyria/drosi/releases/download/mobile-v1.3.0/app-release.apk",
-  "changelog": "• ملاحظات متعددة: إنشاء وفتح ونصوص طويلة مع زر لصق\n• خريطة ذهنية محسّنة مثل الحاسوب: تركيز وربط وفك الربط والانتقال\n• ربط العقد بالسحب من أيقونة ↔\n• روابط المشاركة بالدومين الصحيح",
+  "apkUrl": "https://github.com/yunuscetinxx-del/drosi/releases/download/mobile-v1.5.0/app-release.apk",
+  "changelog": "• Sign up with your name\n• AI workspace with source selection (matches web)\n• Gemini API key in settings (BYOK)\n• Mind maps with folders & drag links\n• Study calendar & lesson sharing\n• Markdown note import & offline sync",
   "mandatory": false,
   "minBuildNumber": 0
 }

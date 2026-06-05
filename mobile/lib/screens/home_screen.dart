@@ -275,7 +275,7 @@ class _GreetingHeader extends StatelessWidget {
         : hour < 18
             ? 'مساء الخير'
             : 'مساء الخير';
-    final name = user.email.split('@').first;
+    final name = user.displayName;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),

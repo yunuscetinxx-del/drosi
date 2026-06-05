@@ -12,22 +12,33 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
+function normalizeName(name: string): string {
+  return name.trim().replace(/\s+/g, " ")
+}
+
 export async function POST(req: NextRequest) {
-  let body: { email?: string; password?: string }
+  let body: { email?: string; password?: string; name?: string }
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
 
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : ""
   const password = typeof body.password === "string" ? body.password : ""
+  const name = typeof body.name === "string" ? normalizeName(body.name) : ""
 
+  if (!name || name.length < 2) {
+    return NextResponse.json({ error: "Name is required (2+ characters)" }, { status: 400 })
+  }
+  if (name.length > 80) {
+    return NextResponse.json({ error: "Name is too long" }, { status: 400 })
+  }
   if (!email || !email.includes("@")) {
-    return NextResponse.json({ error: "البريد غير صالح" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid email address" }, { status: 400 })
   }
   if (password.length < 6) {
-    return NextResponse.json({ error: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" }, { status: 400 })
+    return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
   }
 
   const passwordHash = await bcrypt.hash(password, 10)
@@ -36,6 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     user = await prisma.user.create({
       data: {
+        name,
         email,
         passwordHash,
         lessons: [],
@@ -63,6 +75,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     token,
-    user: { email: user.email, isAdmin: false },
+    user: { name: user.name, email: user.email, isAdmin: false },
   })
 }

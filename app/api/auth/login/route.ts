@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       token,
-      user: { email: user.email, isAdmin: user.isAdmin },
+      user: { name: user.name, email: user.email, isAdmin: user.isAdmin },
     })
   } catch (e) {
     console.error("[login]", e)

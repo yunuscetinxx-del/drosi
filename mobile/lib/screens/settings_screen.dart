@@ -99,8 +99,9 @@ class _AccountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = state.user!;
+    final label = user.displayName;
     final initial =
-        user.email.isNotEmpty ? user.email.characters.first.toUpperCase() : '?';
+        label.isNotEmpty ? label.characters.first.toUpperCase() : '?';
 
     return Card(
       child: Padding(
@@ -132,10 +133,17 @@ class _AccountCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user.email,
+                    user.displayName,
                     style: const TextStyle(fontWeight: FontWeight.bold),
-                    textDirection: TextDirection.ltr,
                   ),
+                  if (user.name != null && user.name!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      user.email,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textDirection: TextDirection.ltr,
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     user.isAdmin ? 'حساب مدير' : 'حساب مستخدم',

@@ -12,6 +12,7 @@ datasource db {
 /// مستخدم التطبيق: بريد + كلمة مرور مشفّرة + مصفوفة الدروس كـ JSON (متوافق مع واجهة التطبيق الحالية)
 model User {
   id              String        @id @default(uuid())
+  name            String        @default("")
   email           String        @unique
   passwordHash    String
   lessons            Json

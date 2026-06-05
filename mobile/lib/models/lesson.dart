@@ -181,12 +181,22 @@ List<LessonNote> _parseLessonNotes(Map<String, dynamic> json) {
 }
 
 class AuthUser {
-  AuthUser({required this.email, required this.isAdmin});
+  AuthUser({required this.email, required this.isAdmin, this.name});
+
   final String email;
   final bool isAdmin;
+  final String? name;
+
+  String get displayName {
+    final trimmed = name?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+    final parts = email.split('@');
+    return parts.isNotEmpty ? parts.first : email;
+  }
 
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
         email: json['email']?.toString() ?? '',
         isAdmin: json['isAdmin'] as bool? ?? false,
+        name: json['name']?.toString(),
       );
 }

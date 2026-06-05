@@ -13,6 +13,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _registerMode = false;
@@ -21,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _name.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -34,7 +36,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       if (_registerMode) {
-        await state.register(_email.text.trim(), _password.text);
+        await state.register(
+          _name.text.trim(),
+          _email.text.trim(),
+          _password.text,
+        );
       } else {
         await state.login(_email.text.trim(), _password.text);
       }
@@ -70,20 +76,39 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (_registerMode) ...[
+                          TextFormField(
+                            controller: _name,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Full name',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
+                            validator: (v) {
+                              final value = v?.trim() ?? '';
+                              if (value.isEmpty) return 'Enter your name';
+                              if (value.length < 2) {
+                                return 'At least 2 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         TextFormField(
                           controller: _email,
                           keyboardType: TextInputType.emailAddress,
                           textDirection: TextDirection.ltr,
                           textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
-                            labelText: 'البريد الإلكتروني',
+                            labelText: 'Email',
                             prefixIcon: Icon(Icons.email_outlined),
                           ),
                           validator: (v) {
                             final value = v?.trim() ?? '';
-                            if (value.isEmpty) return 'أدخل البريد الإلكتروني';
+                            if (value.isEmpty) return 'Enter your email';
                             if (!value.contains('@') || !value.contains('.')) {
-                              return 'بريد إلكتروني غير صالح';
+                              return 'Invalid email';
                             }
                             return null;
                           },
@@ -96,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           textInputAction: TextInputAction.done,
                           onFieldSubmitted: (_) => _submit(),
                           decoration: InputDecoration(
-                            labelText: 'كلمة المرور',
+                            labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(_obscure
@@ -105,13 +130,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () =>
                                   setState(() => _obscure = !_obscure),
                             ),
-                            helperText: _registerMode ? '6 أحرف على الأقل' : null,
+                            helperText: _registerMode ? 'At least 6 characters' : null,
                           ),
                           validator: (v) {
                             final value = v ?? '';
-                            if (value.isEmpty) return 'أدخل كلمة المرور';
+                            if (value.isEmpty) return 'Enter your password';
                             if (_registerMode && value.length < 6) {
-                              return '6 أحرف على الأقل';
+                              return 'At least 6 characters';
                             }
                             return null;
                           },
@@ -127,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       strokeWidth: 2.5, color: Colors.white),
                                 )
                               : Text(
-                                  _registerMode ? 'إنشاء الحساب' : 'تسجيل الدخول',
+                                  _registerMode ? 'Create account' : 'Sign in',
                                 ),
                         ),
                         const SizedBox(height: 16),
@@ -135,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              _registerMode ? 'لديك حساب؟' : 'ليس لديك حساب؟',
+                              _registerMode ? 'Have an account?' : 'No account yet?',
                               style: theme.textTheme.bodyMedium,
                             ),
                             TextButton(
@@ -144,7 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : () => setState(
                                       () => _registerMode = !_registerMode),
                               child: Text(
-                                _registerMode ? 'تسجيل الدخول' : 'سجّل الآن',
+                                _registerMode ? 'Sign in' : 'Sign up',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold),
                               ),
@@ -195,7 +220,7 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           const Text(
-            'دروسي',
+            'Drosi',
             style: TextStyle(
               color: Colors.white,
               fontSize: 30,
@@ -204,7 +229,9 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            registerMode ? 'أنشئ حسابك وابدأ التعلّم' : 'سجّل الدخول لمتابعة دروسك',
+            registerMode
+                ? 'Create your free workspace'
+                : 'Sign in to your workspace',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 14,

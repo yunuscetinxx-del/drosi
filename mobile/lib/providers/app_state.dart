@@ -210,12 +210,12 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> register(String email, String password) async {
+  Future<void> register(String name, String email, String password) async {
     error = null;
     loading = true;
     notifyListeners();
     try {
-      user = await _auth.register(email, password);
+      user = await _auth.register(name, email, password);
       _store = LessonStore(user!.email);
       lessons = await _store!.readLessons();
       notifyListeners();
