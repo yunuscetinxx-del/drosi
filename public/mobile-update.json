@@ -2,7 +2,7 @@
   "version": "1.1.0",
   "buildNumber": 2,
   "releasedAt": "2026-06-05",
-  "apkUrl": "",
+  "apkUrl": "https://github.com/yezensyria/drosi/releases/download/mobile-v1.1.0/durusi.apk",
   "changelog": "• تحديث تلقائي من داخل التطبيق مع رقم إصدار وسجل التغييرات\n• خريطة ذهنية: خلفية منقّطة، ضغطتان للتعديل، ضغطة مطولة للقائمة\n• واجهة احترافية: ثيم فاتح/داكن، إعدادات، بطاقات دروس",
   "mandatory": false,
   "minBuildNumber": 0
