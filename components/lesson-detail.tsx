@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { ImageUploader } from "@/components/image-uploader"
 import { AIAnalysis } from "@/components/ai-analysis"
 import { WordEditor } from "@/components/word-editor"
+import { LessonNotesPanel } from "@/components/lesson-notes-panel"
+import { appendToLessonNotes, getLessonNotes } from "@/lib/lesson-notes"
 import { MindMapsEditor, type MindMapsEditorHandle } from "@/components/mind-maps-editor"
 import {
   FileText,
@@ -115,10 +117,10 @@ export function LessonDetail({
     mindMapsEditorRef.current?.addNodesToActive(nodes)
   }
 
+  const lessonNotes = getLessonNotes(lesson)
+
   const handleAddToNotes = (text: string) => {
-    const currentNotes = lesson.notes || ""
-    const newNotes = currentNotes ? `${currentNotes}\n\n---\n\n${text}` : text
-    onUpdate(lesson.id, { notes: newNotes })
+    onUpdate(lesson.id, { lessonNotes: appendToLessonNotes(lesson, text) })
   }
 
   return (
@@ -176,7 +178,14 @@ export function LessonDetail({
               className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
             >
               <StickyNote className="size-4 shrink-0 opacity-80 sm:size-[1.05rem]" />
-              <span className="min-w-0 flex-1 truncate leading-snug">{t("lesson.tabNotes")}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate leading-snug">
+                <span className="truncate">{t("lesson.tabNotes")}</span>
+                {lessonNotes.length > 0 && (
+                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] tabular-nums sm:text-xs">
+                    {lessonNotes.length}
+                  </Badge>
+                )}
+              </span>
             </TabsTrigger>
             <TabsTrigger
               value="images"
@@ -362,29 +371,15 @@ export function LessonDetail({
           </TabsContent>
 
           {/* Notes */}
-          <TabsContent value="notes" className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 outline-none data-[state=inactive]:hidden">
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <StickyNote className="w-5 h-5 text-primary" />
-                  {t("lesson.personalNotes")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  {t("lesson.notesHint")}
-                </p>
-                <Textarea
-                  value={lesson.notes}
-                  onChange={(e) => onUpdate(lesson.id, { notes: e.target.value })}
-                  placeholder={t("lesson.notesPlaceholder")}
-                  rows={10}
-                  className="min-h-[200px]"
-                  readOnly={readOnly}
-                  disabled={readOnly}
-                />
-              </CardContent>
-            </Card>
+          <TabsContent
+            value="notes"
+            className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-0 outline-none data-[state=inactive]:hidden"
+          >
+            <LessonNotesPanel
+              notes={lessonNotes}
+              readOnly={readOnly}
+              onNotesChange={(next) => onUpdate(lesson.id, { lessonNotes: next })}
+            />
           </TabsContent>
 
           {/* Images */}

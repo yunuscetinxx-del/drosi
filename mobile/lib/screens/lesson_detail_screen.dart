@@ -274,12 +274,15 @@ class LessonItemFactory {
     );
   }
 
-  static LessonNote lessonNote({String title = 'ملاحظة جديدة'}) {
+  static LessonNote lessonNote({
+    String title = 'ملاحظة جديدة',
+    String content = '',
+  }) {
     final now = DateTime.now();
     return LessonNote(
       id: _id(),
       title: title,
-      content: '',
+      content: content,
       createdAt: now,
       updatedAt: now,
     );

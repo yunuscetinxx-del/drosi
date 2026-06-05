@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/lesson.dart';
 import '../models/lesson_note.dart';
@@ -76,8 +77,14 @@ class LessonNotesTab extends StatelessWidget {
   }
 
   Future<void> _createAndPaste(BuildContext context) async {
-    final note = LessonItemFactory.lessonNote(title: 'ملاحظة ملصوقة');
+    final clip = await Clipboard.getData(Clipboard.kTextPlain);
+    final pasted = clip?.text?.trim() ?? '';
+    final note = LessonItemFactory.lessonNote(
+      title: pasted.isNotEmpty ? 'ملاحظة ملصوقة' : 'ملاحظة جديدة',
+      content: pasted,
+    );
     onNotesChanged([...lesson.lessonNotes, note]);
+    if (!context.mounted) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
