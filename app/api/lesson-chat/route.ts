@@ -3,7 +3,8 @@ import {
   mergeProfileFromQuestion,
   parseLearningProfile,
 } from "@/lib/ai-learning-profile"
-import { callOpenRouter } from "@/lib/openrouter-client"
+import { callAiChat } from "@/lib/ai-chat-client"
+import { AiNotConfiguredError, resolveAiCredentials } from "@/lib/user-ai-credentials"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
@@ -71,12 +72,14 @@ ${message}`
   const history = (body.previousMessages ?? []).slice(-12)
 
   try {
-    const reply = await callOpenRouter(
+    const credentials = await resolveAiCredentials(session.userId)
+    const reply = await callAiChat(
       [
         { role: "system", content: systemPrompt },
         ...history.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userPrompt },
       ],
+      credentials,
       { maxTokens: 2000, title: "Durusi - Lesson Chat" }
     )
 
@@ -99,6 +102,9 @@ ${message}`
     return NextResponse.json({ reply: reply.trim() || "تعذّر توليد إجابة." })
   } catch (err) {
     console.error("[lesson-chat]", err)
+    if (err instanceof AiNotConfiguredError) {
+      return NextResponse.json({ error: err.message, code: "AI_NOT_CONFIGURED" }, { status: 503 })
+    }
     const msg = err instanceof Error ? err.message : "خطأ في الاتصال"
     return NextResponse.json({ error: msg }, { status: 500 })
   }

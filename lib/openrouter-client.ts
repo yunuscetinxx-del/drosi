@@ -8,9 +8,9 @@ export type ChatMessage = {
 
 export async function callOpenRouter(
   messages: ChatMessage[],
-  opts?: { maxTokens?: number; temperature?: number; title?: string }
+  opts?: { maxTokens?: number; temperature?: number; title?: string; apiKey?: string }
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY
+  const apiKey = opts?.apiKey?.trim() || process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error("OPENROUTER_API_KEY غير مضبوط")
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {

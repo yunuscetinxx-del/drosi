@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AI_MODEL, AI_MODEL_CONFIG } from "@/lib/ai-model"
-import { formatOpenRouterError } from "@/lib/openrouter-errors"
+import { AI_MODEL_CONFIG } from "@/lib/ai-model"
+import { callAiChat } from "@/lib/ai-chat-client"
+import { parseJsonFromModel } from "@/lib/openrouter-client"
+import { getSessionFromRequest } from "@/lib/auth-server"
+import { AiNotConfiguredError, resolveAiCredentials } from "@/lib/user-ai-credentials"
 
 export async function POST(req: NextRequest) {
-  const { lesson } = await req.json()
-
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY غير مضبوط" }, { status: 500 })
+  const session = await getSessionFromRequest(req)
+  if (!session) {
+    return NextResponse.json({ error: "غير مصرّح" }, { status: 401 })
   }
+
+  const { lesson } = await req.json()
 
   const prompt = `أنت مساعد تعليمي متخصص. قم بتحليل الدرس التالي وأعطِ تحليلاً شاملاً باللغة العربية.
 
@@ -35,46 +38,34 @@ ${lesson.keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}
 }`
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://durusi.app",
-        "X-Title": "Durusi - Lesson Manager",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [{ role: "user", content: prompt }],
-        temperature: AI_MODEL_CONFIG.temperature,
-        max_tokens: AI_MODEL_CONFIG.maxTokensLesson,
-      }),
-    })
+    const credentials = await resolveAiCredentials(session.userId)
+    const text = await callAiChat(
+      [{ role: "user", content: prompt }],
+      credentials,
+      { maxTokens: AI_MODEL_CONFIG.maxTokensLesson, title: "Durusi - Lesson Manager" }
+    )
 
-    if (!response.ok) {
-      const err = await response.text()
-      console.log("[v0] OpenRouter error:", err)
-      return NextResponse.json(
-        { error: formatOpenRouterError(err, response.status) },
-        { status: response.status === 429 ? 429 : 500 }
-      )
+    const fallback = {
+      difficulty: "متوسط",
+      difficultyScore: 5,
+      completeness: 50,
+      strengths: [] as string[],
+      improvements: [] as string[],
+      studyTips: [] as string[],
+      relatedTopics: [] as string[],
+      estimatedStudyTime: "—",
+      mindMapSuggestions: [] as string[],
+      summary: text || "تعذر التحليل",
     }
 
-    const data = await response.json()
-    const text = data.choices?.[0]?.message?.content ?? ""
-
-    let analysis
-    try {
-      const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-      analysis = JSON.parse(cleaned)
-    } catch {
-      console.log("[v0] JSON parse failed, raw text:", text)
-      return NextResponse.json({ error: "فشل في تحليل استجابة النموذج", raw: text }, { status: 500 })
-    }
-
+    const analysis = parseJsonFromModel(text, fallback)
     return NextResponse.json({ analysis })
   } catch (err) {
-    console.log("[v0] fetch error:", err)
-    return NextResponse.json({ error: "خطأ في الاتصال بـ OpenRouter" }, { status: 500 })
+    console.log("[analyze-lesson]", err)
+    if (err instanceof AiNotConfiguredError) {
+      return NextResponse.json({ error: err.message, code: "AI_NOT_CONFIGURED" }, { status: 503 })
+    }
+    const msg = err instanceof Error ? err.message : "خطأ في الاتصال بالذكاء الاصطناعي"
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

@@ -6,7 +6,9 @@ import {
 } from "@/lib/ai-learning-profile"
 import { buildImageAnalysisPrompt } from "@/lib/image-analysis-prompt"
 import { parseAnalysisContent } from "@/lib/lesson-analysis"
-import { callOpenRouter, parseJsonFromModel } from "@/lib/openrouter-client"
+import { callAiChat } from "@/lib/ai-chat-client"
+import { parseJsonFromModel } from "@/lib/openrouter-client"
+import { AiNotConfiguredError, resolveAiCredentials } from "@/lib/user-ai-credentials"
 import { buildSchoolAnalysisPrompt } from "@/lib/school-analysis-prompt"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { prisma } from "@/lib/prisma"
@@ -66,7 +68,8 @@ export async function POST(req: NextRequest) {
     : buildImageAnalysisPrompt(instructions)
 
   try {
-    const text = await callOpenRouter(
+    const credentials = await resolveAiCredentials(session.userId)
+    const text = await callAiChat(
       [
         {
           role: "user",
@@ -76,6 +79,7 @@ export async function POST(req: NextRequest) {
           ],
         },
       ],
+      credentials,
       { maxTokens: isSchool ? 2000 : AI_MODEL_CONFIG.maxTokensImage, title: "Durusi - Analyzer" }
     )
 
@@ -113,7 +117,10 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     console.log("[analyze-image]", err)
-    const msg = err instanceof Error ? err.message : "خطأ في الاتصال بـ OpenRouter"
+    if (err instanceof AiNotConfiguredError) {
+      return NextResponse.json({ error: err.message, code: "AI_NOT_CONFIGURED" }, { status: 503 })
+    }
+    const msg = err instanceof Error ? err.message : "خطأ في الاتصال بالذكاء الاصطناعي"
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

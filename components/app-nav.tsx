@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BookOpen, CalendarDays } from "lucide-react"
+import { BookOpen, CalendarDays, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTranslations } from "@/components/locale-provider"
 import { ShareLessonButton } from "@/components/share-lesson-dialog"
@@ -46,6 +46,11 @@ export function AppNav({ shareLesson }: AppNavProps) {
       <Link href="/calendar" className={linkClass(pathname === "/calendar")}>
         <CalendarDays className="h-4 w-4" />
         <span className="hidden sm:inline">{t("nav.calendar")}</span>
+      </Link>
+
+      <Link href="/settings" className={linkClass(pathname === "/settings")}>
+        <Settings className="h-4 w-4" />
+        <span className="hidden sm:inline">{t("nav.settings")}</span>
       </Link>
     </nav>
   )

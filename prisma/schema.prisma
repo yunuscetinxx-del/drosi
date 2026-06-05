@@ -18,6 +18,11 @@ model User {
   calendarEvents     Json          @default("[]")
   /// ملف تعلّم المستخدم الذي يبنيه الذكاء (JSON منظم — يُصدَّر MD للأدمن)
   aiLearningProfile  Json          @default("{}")
+  /// مفتاح Gemini API مشفّر (AES-256-GCM) — اختياري
+  geminiApiKeyEnc    String?
+  /// آخر 4 أحرف من المفتاح للعرض فقط (مثل abcd)
+  geminiKeyHint      String?
+  geminiKeyUpdatedAt DateTime?
   isAdmin            Boolean       @default(false)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
