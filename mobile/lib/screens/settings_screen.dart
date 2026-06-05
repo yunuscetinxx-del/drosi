@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_update_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -32,6 +33,9 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 16),
           _SectionTitle('المزامنة'),
           _SyncCard(state: state),
+          const SizedBox(height: 16),
+          _SectionTitle('تحديث التطبيق'),
+          _UpdateCard(state: state),
           const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: () => _confirmLogout(context, state),
@@ -45,7 +49,9 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'دروسي • الإصدار 1.0.0',
+              state.appVersionLabel.isEmpty
+                  ? 'دروسي'
+                  : 'دروسي • ${state.appVersionLabel}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context)
                         .colorScheme
@@ -239,6 +245,70 @@ class _SyncCard extends StatelessWidget {
     final h = d.hour.toString().padLeft(2, '0');
     final m = d.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+}
+
+class _UpdateCard extends StatelessWidget {
+  const _UpdateCard({required this.state});
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUpdate = state.availableUpdate != null;
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(
+              hasUpdate ? Icons.new_releases : Icons.system_update_alt,
+              color: hasUpdate ? Colors.orange : null,
+            ),
+            title: Text(hasUpdate
+                ? 'تحديث متاح: ${state.availableUpdate!.version}'
+                : 'الإصدار الحالي'),
+            subtitle: Text(
+              state.appVersionLabel.isEmpty ? '—' : state.appVersionLabel,
+            ),
+            trailing: state.checkingUpdate
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: FilledButton.icon(
+              onPressed: state.checkingUpdate
+                  ? null
+                  : () => _checkUpdate(context),
+              icon: const Icon(Icons.refresh),
+              label: const Text('التحقق من التحديثات'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkUpdate(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final has = await state.checkForAppUpdate(force: true);
+    if (!context.mounted) return;
+    if (has && state.availableUpdate != null) {
+      final action = await AppUpdateDialog.show(
+        context,
+        update: state.availableUpdate!,
+        currentVersion: state.appVersionLabel,
+        mandatory: state.availableUpdate!.mandatory,
+      );
+      if (action == 'later') await state.skipAvailableUpdate();
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('أنت على آخر إصدار متاح')),
+      );
+    }
   }
 }
 

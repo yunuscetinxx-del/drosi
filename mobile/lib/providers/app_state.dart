@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
+import '../models/app_update_info.dart';
 import '../models/lesson.dart';
 import '../services/api_client.dart';
+import '../services/app_update_service.dart';
 import '../services/auth_service.dart';
 import '../services/lesson_store.dart';
 import '../services/lessons_service.dart';
@@ -35,7 +38,12 @@ class AppState extends ChangeNotifier {
   DateTime? lastSyncedAt;
   int pendingCount = 0;
 
+  String appVersionLabel = '';
+  AppUpdateInfo? availableUpdate;
+  bool checkingUpdate = false;
+
   LessonStore? _store;
+  final _appUpdate = AppUpdateService();
   StreamSubscription<List<ConnectivityResult>>? _connSub;
 
   LessonStore? get _activeStore => _store;
@@ -78,6 +86,57 @@ class AppState extends ChangeNotifier {
     }
 
     loading = false;
+    notifyListeners();
+
+    if (user != null) {
+      unawaited(_loadAppVersion());
+    }
+  }
+
+  Future<void> _loadAppVersion() async {
+    final pkg = await PackageInfo.fromPlatform();
+    appVersionLabel = '${pkg.version} (${pkg.buildNumber})';
+    notifyListeners();
+  }
+
+  /// يتحقق من mobile-update.json على السيرفر.
+  Future<bool> checkForAppUpdate({bool force = false}) async {
+    checkingUpdate = true;
+    notifyListeners();
+    try {
+      await _loadAppVersion();
+      await _refreshConnectivity();
+      if (!online) {
+        if (force) availableUpdate = null;
+        return false;
+      }
+      final update = await _appUpdate.checkForUpdate();
+      if (update == null) {
+        availableUpdate = null;
+        return false;
+      }
+      if (!force && !update.mandatory) {
+        final prefs = await SharedPreferences.getInstance();
+        final skipped = prefs.getInt(AppUpdateService.skippedBuildKey) ?? 0;
+        if (skipped >= update.buildNumber) {
+          availableUpdate = null;
+          return false;
+        }
+      }
+      availableUpdate = update;
+      return true;
+    } finally {
+      checkingUpdate = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> skipAvailableUpdate() async {
+    final update = availableUpdate;
+    if (update == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(AppUpdateService.skippedBuildKey, update.buildNumber);
+    availableUpdate = null;
     notifyListeners();
   }
 

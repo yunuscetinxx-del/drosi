@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/lesson.dart';
 import '../providers/app_state.dart';
+import '../widgets/app_update_dialog.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/lesson_card.dart';
 import '../widgets/shimmer.dart';
@@ -23,9 +24,33 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<AppState>().syncNow();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onReady());
+  }
+
+  Future<void> _onReady() async {
+    if (!mounted) return;
+    final state = context.read<AppState>();
+    await state.syncNow();
+    if (!mounted) return;
+    if (await state.checkForAppUpdate()) {
+      await _showUpdateDialogIfNeeded();
+    }
+  }
+
+  Future<void> _showUpdateDialogIfNeeded() async {
+    if (!mounted) return;
+    final state = context.read<AppState>();
+    final update = state.availableUpdate;
+    if (update == null) return;
+    final action = await AppUpdateDialog.show(
+      context,
+      update: update,
+      currentVersion: state.appVersionLabel,
+      mandatory: update.mandatory,
+    );
+    if (action == 'later' && mounted) {
+      await state.skipAvailableUpdate();
+    }
   }
 
   @override

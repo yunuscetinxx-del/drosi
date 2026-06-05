@@ -43,23 +43,62 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
     return null;
   }
 
-  void _addNode({String? parentId}) {
-    final parent = parentId == null
-        ? null
-        : _map.nodes.firstWhere((n) => n.id == parentId);
+  void _addNode({
+    String? parentId,
+    Offset? at,
+    MindMapNodeRole? role,
+  }) {
+    MindMapNode? parent;
+    if (parentId != null) {
+      for (final n in _map.nodes) {
+        if (n.id == parentId) {
+          parent = n;
+          break;
+        }
+      }
+    }
+
+    final resolvedRole = role ??
+        (parentId != null ? MindMapNodeRole.branch : MindMapNodeRole.main);
+    final w =
+        resolvedRole == MindMapNodeRole.main ? kMindMapMainW : kMindMapBranchW;
+    final h =
+        resolvedRole == MindMapNodeRole.main ? kMindMapMainH : kMindMapBranchH;
+
+    double x;
+    double y;
+    if (at != null) {
+      x = at.dx - w / 2;
+      y = at.dy - h / 2;
+    } else if (parent != null) {
+      x = parent.x + 180;
+      y = parent.y + (_childCount(parentId!) * 90);
+    } else {
+      x = 140;
+      y = 200 + (_map.nodes.length * 40);
+    }
+
     final colorIndex = _map.nodes.length % kMindMapNodeColors.length;
     final node = MindMapNode(
       id: newId(),
-      text: parentId == null ? 'فكرة رئيسية' : 'فرع',
-      x: parent == null ? 140 : parent.x + 180,
-      y: parent == null ? 200 : parent.y + (_childCount(parentId!) * 90),
+      text: resolvedRole == MindMapNodeRole.main ? 'فكرة رئيسية' : 'فرع',
+      x: x,
+      y: y,
       parentId: parentId,
       color: hexFromColor(kMindMapNodeColors[colorIndex]),
-      role: parentId == null ? MindMapNodeRole.main : MindMapNodeRole.branch,
+      role: resolvedRole,
     );
     _map.nodes = [..._map.nodes, node];
     _selectedId = node.id;
     _commit();
+  }
+
+  void _addSibling(MindMapNode node) {
+    if (node.parentId != null) {
+      _addNode(parentId: node.parentId);
+    } else {
+      _addNode();
+    }
   }
 
   int _childCount(String parentId) =>
@@ -69,7 +108,7 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
     final node = _map.nodes.firstWhere((n) => n.id == id);
     node.x += delta.dx;
     node.y += delta.dy;
-    setState(() {}); // تحديث سريع أثناء السحب دون commit لكل إطار
+    setState(() {});
   }
 
   Future<void> _editNode(MindMapNode node) async {
@@ -79,32 +118,34 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تعديل العقدة'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'النص',
-                border: OutlineInputBorder(),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'النص',
+                  prefixIcon: Icon(Icons.title),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteController,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظة (اختياري)',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'ملاحظة (اختياري)',
+                  prefixIcon: Icon(Icons.sticky_note_2_outlined),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _ColorPicker(
-              selected: node.color,
-              onPick: (c) => node.color = c,
-            ),
-          ],
+              const SizedBox(height: 12),
+              _ColorPicker(
+                selected: node.color,
+                onPick: (c) => node.color = c,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -119,7 +160,7 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
       ),
     );
     if (result == true) {
-      node.text = controller.text.trim();
+      node.text = controller.text.trim().isEmpty ? node.text : controller.text.trim();
       node.note = noteController.text.trim().isEmpty
           ? null
           : noteController.text.trim();
@@ -127,10 +168,14 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
     }
   }
 
+  void _setNodeColor(MindMapNode node, String hex) {
+    node.color = hex;
+    _commit();
+  }
+
   void _deleteNode(String id) {
-    // حذف العقدة وكل أبنائها.
     final toRemove = <String>{id};
-    bool changed = true;
+    var changed = true;
     while (changed) {
       changed = false;
       for (final n in _map.nodes) {
@@ -148,36 +193,118 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
   }
 
   void _showNodeMenu(MindMapNode node) {
+    setState(() => _selectedId = node.id);
     showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                node.text,
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('تعديل النص واللون'),
+              leading: const Icon(Icons.edit, color: Colors.blue),
+              title: const Text('تعديل النص'),
+              subtitle: const Text('أو ضغطتين سريعتين على العقدة'),
               onTap: () {
                 Navigator.pop(ctx);
                 _editNode(node);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.add_circle_outline),
+              leading: const Icon(Icons.add_circle_outline, color: Colors.green),
               title: const Text('إضافة فرع'),
               onTap: () {
                 Navigator.pop(ctx);
                 _addNode(parentId: node.id);
               },
             ),
+            if (node.parentId != null)
+              ListTile(
+                leading: const Icon(Icons.add, color: Colors.teal),
+                title: const Text('إضافة عقدة شقيقة'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addSibling(node);
+                },
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'لون العقدة',
+                  style: Theme.of(ctx).textTheme.labelMedium,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _ColorPicker(
+                selected: node.color,
+                onPick: (hex) {
+                  _setNodeColor(node, hex);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('حذف العقدة وفروعها'),
+              title: const Text('حذف العقدة وفروعها', style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(ctx);
                 _deleteNode(node.id);
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCanvasMenu(Offset position) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.star_outline, color: Colors.amber),
+              title: const Text('إضافة فكرة رئيسية هنا'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _addNode(at: position);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_tree_outlined),
+              title: const Text('إضافة فرع منفصل هنا'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _addNode(at: position, role: MindMapNodeRole.branch);
+              },
+            ),
+            if (_selected != null)
+              ListTile(
+                leading: const Icon(Icons.add_box_outlined, color: Colors.green),
+                title: Text('إضافة فرع لـ «${_selected!.text}»'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _addNode(parentId: _selected!.id);
+                },
+              ),
           ],
         ),
       ),
@@ -212,37 +339,57 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
           ),
         ],
       ),
-      body: MindMapCanvas(
-        nodes: _map.nodes,
-        selectedId: _selectedId,
-        onSelect: (id) => setState(() => _selectedId = id),
-        onMove: _moveNode,
-        onMoveEnd: _commit,
-        onTapNode: (node) => setState(() => _selectedId = node.id),
-        onMenuNode: _showNodeMenu,
-        onTapEmpty: () => setState(() => _selectedId = null),
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      body: Stack(
         children: [
-          if (_selected != null) ...[
-            FloatingActionButton.small(
-              heroTag: 'branch',
-              tooltip: 'إضافة فرع',
-              onPressed: () => _addNode(parentId: _selected!.id),
-              child: const Icon(Icons.add_box),
+          MindMapCanvas(
+            nodes: _map.nodes,
+            selectedId: _selectedId,
+            onSelect: (id) => setState(() => _selectedId = id),
+            onMove: _moveNode,
+            onMoveEnd: _commit,
+            onTapNode: (node) => setState(() => _selectedId = node.id),
+            onDoubleTapNode: _editNode,
+            onMenuNode: _showNodeMenu,
+            onTapEmpty: () => setState(() => _selectedId = null),
+            onLongPressEmpty: _showCanvasMenu,
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Text(
+                  'ضغطتان = تعديل • ضغطة مطولة على العقدة = قائمة • على الخلفية = إضافة',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-          ],
-          FloatingActionButton.extended(
-            heroTag: 'node',
-            onPressed: () => _addNode(),
-            icon: const Icon(Icons.add),
-            label: const Text('عقدة'),
           ),
         ],
       ),
+      floatingActionButton: _selected != null
+          ? FloatingActionButton.extended(
+              heroTag: 'branch',
+              onPressed: () => _addNode(parentId: _selected!.id),
+              icon: const Icon(Icons.add_box),
+              label: const Text('فرع'),
+            )
+          : FloatingActionButton.extended(
+              heroTag: 'node',
+              onPressed: () => _addNode(),
+              icon: const Icon(Icons.add),
+              label: const Text('فكرة رئيسية'),
+            ),
     );
   }
 
@@ -287,7 +434,8 @@ class _ColorPickerState extends State<_ColorPicker> {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 8,
+      spacing: 10,
+      runSpacing: 10,
       children: kMindMapNodeColors.map((argb) {
         final hex = hexFromColor(argb);
         final selected = hex == _current;
@@ -297,13 +445,13 @@ class _ColorPickerState extends State<_ColorPicker> {
             widget.onPick(hex);
           },
           child: Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: Color(argb),
               shape: BoxShape.circle,
               border: Border.all(
-                color: selected ? Colors.black : Colors.transparent,
+                color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
                 width: 3,
               ),
             ),
