@@ -237,9 +237,7 @@ export function ShareLessonDialog({ lesson, open, onOpenChange }: ShareLessonDia
   }
 
   const copyLink = async (share: LessonShareRecord) => {
-    const url =
-      share.shareUrl ||
-      `${typeof window !== "undefined" ? window.location.origin : ""}/share/${share.token}`
+    const url = share.shareUrl || `/share/${share.token}`
     try {
       await navigator.clipboard.writeText(url)
       setCopiedId(share.id)
