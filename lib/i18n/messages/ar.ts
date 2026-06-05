@@ -393,6 +393,8 @@ export const messages = {
     unlinkMap: "إلغاء الربط",
     noMapsToLink: "لا توجد خرائط أخرى للربط",
     goToLinkedMap: "الانتقال إلى {title}",
+    focusNode: "تركيز على العقدة",
+    focusSelection: "تركيز على المحدد",
     importFromKeyPoints: "من النقاط الرئيسية",
     importFromSummary: "من الملخص",
     importEmpty: "لا يوجد محتوى للاستيراد",

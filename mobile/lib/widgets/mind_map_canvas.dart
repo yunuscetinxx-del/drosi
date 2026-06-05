@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/mind_map.dart';
@@ -41,12 +43,13 @@ class MindMapCanvas extends StatefulWidget {
   final ValueChanged<Offset> onLongPressEmpty;
 
   @override
-  State<MindMapCanvas> createState() => _MindMapCanvasState();
+  State<MindMapCanvas> createState() => MindMapCanvasState();
 }
 
-class _MindMapCanvasState extends State<MindMapCanvas> {
+class MindMapCanvasState extends State<MindMapCanvas> {
   final _controller = TransformationController();
   static const double canvasSize = 4000;
+  Size _viewportSize = Size.zero;
 
   @override
   void dispose() {
@@ -56,12 +59,54 @@ class _MindMapCanvasState extends State<MindMapCanvas> {
 
   double get _scale => _controller.value.getMaxScaleOnAxis();
 
+  /// تمركز العرض على عقدة واحدة أو على كل العقد.
+  void focusOn({MindMapNode? node}) {
+    final targets = node != null ? [node] : widget.nodes;
+    if (targets.isEmpty) return;
+
+    var minX = double.infinity;
+    var minY = double.infinity;
+    var maxX = double.negativeInfinity;
+    var maxY = double.negativeInfinity;
+    for (final n in targets) {
+      final w = mindMapNodeWidth(n);
+      var h = mindMapNodeHeight(n);
+      if (n.note != null && n.note!.isNotEmpty) h += 52;
+      minX = math.min(minX, n.x);
+      minY = math.min(minY, n.y);
+      maxX = math.max(maxX, n.x + w);
+      maxY = math.max(maxY, n.y + h);
+    }
+
+    final pad = 100.0;
+    final boxW = maxX - minX + pad * 2;
+    final boxH = maxY - minY + pad * 2;
+    final cx = (minX + maxX) / 2;
+    final cy = (minY + maxY) / 2;
+
+    if (_viewportSize.width <= 0 || _viewportSize.height <= 0 || boxW <= 0 || boxH <= 0) {
+      return;
+    }
+    final vw = _viewportSize.width;
+    final vh = _viewportSize.height;
+    final s = math.min(vw / boxW, vh / boxH).clamp(0.3, 3.0);
+
+    final matrix = Matrix4.identity()
+      ..translateByDouble(vw / 2, vh / 2, 0, 1)
+      ..scaleByDouble(s, s, 1, 1)
+      ..translateByDouble(-cx, -cy, 0, 1);
+    _controller.value = matrix;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF12141C) : const Color(0xFFF3F4F8);
 
-    return InteractiveViewer(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+        return InteractiveViewer(
       transformationController: _controller,
       minScale: 0.3,
       maxScale: 3,
@@ -94,6 +139,8 @@ class _MindMapCanvasState extends State<MindMapCanvas> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 

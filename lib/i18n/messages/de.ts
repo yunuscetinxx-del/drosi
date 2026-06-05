@@ -395,6 +395,8 @@ export const messages: Messages = {
     unlinkMap: "Verknüpfung entfernen",
     noMapsToLink: "Keine weiteren Mindmaps zum Verknüpfen",
     goToLinkedMap: "Zu {title} wechseln",
+    focusNode: "Auf Knoten fokussieren",
+    focusSelection: "Auswahl fokussieren",
     importFromKeyPoints: "Aus Stichpunkten",
     importFromSummary: "Aus Zusammenfassung",
     importEmpty: "Nichts zu importieren",

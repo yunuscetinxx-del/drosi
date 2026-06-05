@@ -20,7 +20,17 @@ import {
 import { MindMapNodeMenu, type MindMapContextMenuState } from "@/components/mind-map-node-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, ZoomIn, ZoomOut, Maximize2, Hand, MousePointer2, GripVertical, BoxSelect } from "lucide-react"
+import {
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Hand,
+  MousePointer2,
+  GripVertical,
+  BoxSelect,
+  Crosshair,
+} from "lucide-react"
 import { useTranslations } from "@/components/locale-provider"
 
 interface MindMapProps {
@@ -479,6 +489,54 @@ export function MindMap({
     setZoom(1)
     setViewBox({ x: 0, y: 0, w: MAP_BASE_W, h: MAP_BASE_H })
   }
+
+  /** تمركز العرض على عقد محددة (أو المحدد حالياً، أو كل العقد). */
+  const focusNodesInView = useCallback(
+    (ids?: Set<string>) => {
+      const targetIds =
+        ids ??
+        (selectedNodeIds.size > 0
+          ? selectedNodeIds
+          : new Set(nodes.map((n) => n.id)))
+      const list = nodes.filter((n) => targetIds.has(n.id))
+      if (list.length === 0) return
+
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const n of list) {
+        const b = getNodeWorldBounds(n)
+        minX = Math.min(minX, b.x)
+        minY = Math.min(minY, b.y)
+        maxX = Math.max(maxX, b.x + b.w)
+        maxY = Math.max(maxY, b.y + b.h)
+      }
+
+      const pad = 80
+      const bw = maxX - minX + pad * 2
+      const bh = maxY - minY + pad * 2
+      const svg = svgRef.current
+      if (!svg || bw <= 0 || bh <= 0) return
+
+      const rect = svg.getBoundingClientRect()
+      const aspectViewport = rect.width / rect.height
+      const aspectBox = bw / bh
+      let vw = bw
+      let vh = bh
+      if (aspectBox > aspectViewport) {
+        vh = bw / aspectViewport
+      } else {
+        vw = bh * aspectViewport
+      }
+
+      const nx = minX - pad - (vw - bw) / 2
+      const ny = minY - pad - (vh - bh) / 2
+      setViewBox({ x: nx, y: ny, w: vw, h: vh })
+      setZoom(MAP_BASE_W / vw)
+    },
+    [nodes, selectedNodeIds]
+  )
 
   // Wheel zoom
   const handleWheel = useCallback(
@@ -1243,6 +1301,16 @@ export function MindMap({
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleZoomOut}>
             <ZoomOut className="w-3.5 h-3.5" />
           </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            title={t("mindMap.focusSelection")}
+            disabled={nodes.length === 0}
+            onClick={() => focusNodesInView()}
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+          </Button>
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleReset}>
             <Maximize2 className="w-3.5 h-3.5" />
           </Button>
@@ -1623,6 +1691,35 @@ export function MindMap({
                     </g>
                   </g>
                 )}
+
+                <g
+                  transform={`translate(${bodyW / 2}, ${linkedMap && onNavigateToMap ? -38 : -18})`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    focusNodesInView(new Set([node.id]))
+                  }}
+                  className="cursor-pointer"
+                  style={{ pointerEvents: "all" }}
+                >
+                  <title>{t("mindMap.focusNode")}</title>
+                  <circle
+                    r="11"
+                    fill="#3b82f6"
+                    stroke="var(--background)"
+                    strokeWidth="2"
+                    opacity={isHovered ? 1 : 0.95}
+                  />
+                  <text
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize="11"
+                    fontWeight="bold"
+                  >
+                    ⊙
+                  </text>
+                </g>
 
                 {linkedMap && onNavigateToMap && (
                   <g

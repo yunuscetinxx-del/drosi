@@ -20,6 +20,7 @@ class MindMapEditorScreen extends StatefulWidget {
 }
 
 class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
+  final _canvasKey = GlobalKey<MindMapCanvasState>();
   late MindMap _map;
   String? _selectedId;
 
@@ -333,6 +334,17 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'تركيز على العقدة',
+            icon: const Icon(Icons.center_focus_strong),
+            onPressed: () {
+              if (_selected != null) {
+                _canvasKey.currentState?.focusOn(node: _selected);
+              } else {
+                _canvasKey.currentState?.focusOn();
+              }
+            },
+          ),
+          IconButton(
             tooltip: 'إعادة تسمية',
             icon: const Icon(Icons.drive_file_rename_outline),
             onPressed: _renameMap,
@@ -342,6 +354,7 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
       body: Stack(
         children: [
           MindMapCanvas(
+            key: _canvasKey,
             nodes: _map.nodes,
             selectedId: _selectedId,
             onSelect: (id) => setState(() => _selectedId = id),

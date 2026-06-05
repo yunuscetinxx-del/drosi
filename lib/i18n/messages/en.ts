@@ -395,6 +395,8 @@ export const messages: Messages = {
     unlinkMap: "Remove link",
     noMapsToLink: "No other maps to link",
     goToLinkedMap: "Go to {title}",
+    focusNode: "Focus on node",
+    focusSelection: "Focus selection",
     importFromKeyPoints: "From key points",
     importFromSummary: "From summary",
     importEmpty: "Nothing to import",

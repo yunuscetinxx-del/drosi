@@ -1,7 +1,7 @@
 name: drosi_mobile
 description: تطبيق دروسي — متصل بموقع دروسي (Next.js API)
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.11.4
