@@ -13,6 +13,7 @@ import {
   sortAnalysesNewestFirst,
 } from "@/lib/lesson-analysis"
 import { requestImageAnalysis, requestLessonChat } from "@/lib/analyze-image-client"
+import { buildChatContextFromLesson } from "@/lib/lesson-chat-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -152,7 +153,10 @@ export function LessonAiHub({
         mode: subjectMode,
       })
 
-      const thread = createChatThread(entry.id, `دردشة: ${title}`)
+      const thread = createChatThread({
+        analysisId: entry.id,
+        title: `دردشة: ${title}`,
+      })
       const nextAnalyses = [entry, ...analyses]
       const nextThreads = [thread, ...threads]
       persistAnalyses(nextAnalyses, nextThreads)
@@ -177,16 +181,16 @@ export function LessonAiHub({
     let nextThreads = [...threads]
 
     if (!thread && activeAnalysis) {
-      thread = threads.find((t) => t.id === activeAnalysis.chatThreadId) ?? createChatThread(
-        activeAnalysis.id,
-        `دردشة: ${activeAnalysis.title}`
-      )
+      thread = threads.find((t) => t.id === activeAnalysis.chatThreadId) ?? createChatThread({
+        analysisId: activeAnalysis.id,
+        title: `دردشة: ${activeAnalysis.title}`,
+      })
       if (!threads.some((t) => t.id === thread!.id)) {
         nextThreads = [thread, ...threads]
       }
     }
     if (!thread) {
-      thread = createChatThread(undefined, t("aiHub.generalChat"))
+      thread = createChatThread({ title: t("aiHub.generalChat") })
       nextThreads = [thread, ...nextThreads]
     }
 
@@ -196,20 +200,23 @@ export function LessonAiHub({
     onUpdateLesson({ lessonChatThreads: nextThreads.map((t) => (t.id === withUser.id ? withUser : t)) })
     setActiveThreadId(withUser.id)
 
+    const contextText = buildChatContextFromLesson(
+      lesson,
+      activeThread?.sourceScope ?? {
+        analysisIds: activeAnalysis ? [activeAnalysis.id] : [],
+        imageIds: [],
+        noteIds: [],
+        wordPageIds: [],
+      },
+      analyses
+    )
     const res = await requestLessonChat({
       message: msg,
       lessonId: lesson.id,
       lessonTitle: lesson.title,
       lessonSubject: lesson.subject,
       analysisId: activeAnalysis?.id,
-      analyses: analyses.map((a) => ({
-        id: a.id,
-        title: a.title,
-        summary: a.summary,
-        markdownReport: a.markdownReport,
-        subject: a.subject,
-        content: a.content,
-      })),
+      contextText,
       previousMessages: withUser.messages
         .slice(0, -1)
         .map((m) => ({ role: m.role, content: m.content })),

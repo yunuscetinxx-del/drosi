@@ -69,14 +69,31 @@ export async function requestLessonChat(params: {
   lessonTitle: string
   lessonSubject: string
   analysisId?: string
-  analyses: Array<{ id: string; title: string; summary: string; markdownReport: string; subject: string; content: { grammarTopics?: string[] } }>
+  contextText?: string
+  analyses?: Array<{
+    id: string
+    title: string
+    summary: string
+    markdownReport: string
+    subject: string
+    content: { grammarTopics?: string[] }
+  }>
   previousMessages: Array<{ role: "user" | "assistant"; content: string }>
   topic?: string
 }): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
   const res = await fetch("/api/lesson-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      message: params.message,
+      lessonId: params.lessonId,
+      lessonTitle: params.lessonTitle,
+      lessonSubject: params.lessonSubject,
+      analysisId: params.analysisId,
+      contextText: params.contextText,
+      previousMessages: params.previousMessages,
+      topic: params.topic,
+    }),
   })
   const data = (await res.json()) as { reply?: string; error?: string }
   if (!res.ok || data.error) {

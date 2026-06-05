@@ -1,5 +1,17 @@
 /** تحليلات ودردشة مرتبطة بكل درس */
 
+/** مصادر جلسة الشات (مثل NotebookLM) */
+export interface ChatSourceScope {
+  analysisIds: string[]
+  imageIds: string[]
+  noteIds: string[]
+  wordPageIds: string[]
+}
+
+export function emptyChatSourceScope(): ChatSourceScope {
+  return { analysisIds: [], imageIds: [], noteIds: [], wordPageIds: [] }
+}
+
 export interface SchoolExercise {
   number: string
   title: string
@@ -57,6 +69,8 @@ export interface LessonChatThread {
   id: string
   analysisId?: string
   title: string
+  /** مصادر مفعّلة لهذه الجلسة */
+  sourceScope?: ChatSourceScope
   messages: LessonChatMessage[]
   createdAt: Date
   updatedAt: Date

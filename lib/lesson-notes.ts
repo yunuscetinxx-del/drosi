@@ -41,6 +41,16 @@ export function createLessonNote(title = "ملاحظة جديدة", content = ""
   }
 }
 
+/** ملاحظة جديدة من الشات أو التحليل */
+export function prependLessonNote(
+  lesson: Lesson,
+  title: string,
+  content: string
+): LessonNoteEntry[] {
+  const note = createLessonNote(title, content)
+  return [note, ...getLessonNotes(lesson)]
+}
+
 export function appendToLessonNotes(lesson: Lesson, text: string): LessonNoteEntry[] {
   const notes = getLessonNotes(lesson)
   const now = new Date()

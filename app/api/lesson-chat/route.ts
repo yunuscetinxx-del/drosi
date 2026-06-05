@@ -7,7 +7,6 @@ import { callOpenRouter } from "@/lib/openrouter-client"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
-import type { LessonAnalysisEntry } from "@/types/lesson-analysis"
 
 export async function POST(req: NextRequest) {
   const session = await getSessionFromRequest(req)
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
     lessonSubject?: string
     lessonId?: string
     analysisId?: string
-    analyses?: LessonAnalysisEntry[]
+    contextText?: string
     previousMessages?: Array<{ role: "user" | "assistant"; content: string }>
     topic?: string
   }
@@ -42,41 +41,34 @@ export async function POST(req: NextRequest) {
   })
   const profile = parseLearningProfile(user?.aiLearningProfile)
 
-  const analyses = body.analyses ?? []
-  const focused = body.analysisId
-    ? analyses.find((a) => a.id === body.analysisId)
-    : analyses[0]
-
-  const contextBlock = focused
-    ? `تحليل مرتبط:\n${focused.markdownReport ?? focused.summary}`
-    : analyses.length
-      ? analyses
-          .slice(0, 3)
-          .map((a) => `- ${a.title}: ${a.summary}`)
-          .join("\n")
-      : "لا تحليلات محفوظة بعد"
+  const contextBlock =
+    body.contextText?.trim() ||
+    "لا مصادر محددة — أجب بناءً على سؤال الطالب فقط إن لم يتوفر سياق."
 
   const profileSummary = Object.entries(profile.subjects)
     .slice(0, 5)
     .map(([k, s]) => `${k}: ${s.topicsStudied.slice(-5).join("، ")}`)
     .join("\n")
 
-  const systemPrompt = `أنت معلّم شخصي يجيب عن أسئلة الطالب حول درسه المحدد.
-- أجب بالعربية بوضوح واختصار مناسب
-- استخدم سياق التحليل والملف التعليمي للمستخدم
-- إن سُئلت عن تمرين، اشرح خطوة بخطوة
-- لا تخترع محتوى غير موجود في التحليل إلا كتفسير تعليمي عام`
+  const systemPrompt = `أنت مساعد تعليمي رسمي (مثل NotebookLM) متخصص في تحليل الدروس المدرسية.
+- أجب بالعربية بأسلوب واضح ومنظم
+- استند فقط إلى المصادر المرفقة أدناه؛ إن نقصت معلومة قل ذلك صراحة
+- عند شرح تمارين: خطوة بخطوة مع أمثلة
+- يمكنك اقتراح خطة مراجعة أو خريطة مفاهيم نصية عند الطلب
+- لا تخترع حقائق خارج المصادر`
 
   const userPrompt = `الدرس: ${body.lessonTitle ?? "—"} (${body.lessonSubject ?? "—"})
-سياق التحليل:
+
+═══ المصادر المحددة ═══
 ${contextBlock}
 
-ملف تعلّم الطالب:
+═══ ملف تعلّم الطالب ═══
 ${profileSummary || "جديد"}
 
-سؤال الطالب: ${message}`
+═══ سؤال الطالب ═══
+${message}`
 
-  const history = (body.previousMessages ?? []).slice(-8)
+  const history = (body.previousMessages ?? []).slice(-12)
 
   try {
     const reply = await callOpenRouter(
@@ -85,22 +77,18 @@ ${profileSummary || "جديد"}
         ...history.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: userPrompt },
       ],
-      { maxTokens: 1200, title: "Durusi - Lesson Chat" }
+      { maxTokens: 2000, title: "Durusi - Lesson Chat" }
     )
 
-    const topic =
-      body.topic?.trim() ||
-      focused?.content.grammarTopics?.[0] ||
-      body.lessonSubject ||
-      "عام"
+    const topic = body.topic?.trim() || body.lessonSubject || "عام"
 
     const updated = mergeProfileFromQuestion(profile, {
       topic,
       question: message,
       askedAt: new Date().toISOString(),
       lessonId: body.lessonId,
-      analysisId: body.analysisId ?? focused?.id,
-      subject: body.lessonSubject || focused?.subject,
+      analysisId: body.analysisId,
+      subject: body.lessonSubject,
     })
 
     await prisma.user.update({

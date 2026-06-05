@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ImageUploader } from "@/components/image-uploader"
-import { LessonAiHub } from "@/components/lesson-ai-hub"
+import { LessonAiWorkspace } from "@/components/lesson-ai-workspace"
+import { prependLessonNote } from "@/lib/lesson-notes"
+import { createEmptyMindMap } from "@/lib/mind-maps-utils"
 import { getLessonAnalyses } from "@/lib/lesson-analysis"
 import { WordEditor } from "@/components/word-editor"
 import { LessonNotesPanel } from "@/components/lesson-notes-panel"
@@ -466,11 +468,41 @@ export function LessonDetail({
             value="ai"
             className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
           >
-            <LessonAiHub
+            <LessonAiWorkspace
               lesson={lesson}
               readOnly={readOnly}
               onUpdateLesson={(updates) => onUpdate(lesson.id, updates)}
-              onAddToNotes={readOnly ? () => {} : handleAddToNotes}
+              onAddNote={
+                readOnly
+                  ? () => {}
+                  : (title, content) =>
+                      onUpdate(lesson.id, {
+                        lessonNotes: prependLessonNote(lesson, title, content),
+                      })
+              }
+              onCreateMindMap={
+                readOnly
+                  ? () => {}
+                  : (title, nodes) => {
+                      const map = {
+                        ...createEmptyMindMap(title),
+                        nodes,
+                        saved: true,
+                      }
+                      onUpdate(lesson.id, {
+                        mindMaps: [map, ...(lesson.mindMaps ?? [])],
+                      })
+                    }
+              }
+              onAddToActiveMindMap={
+                readOnly
+                  ? () => {}
+                  : (nodes) => mindMapsEditorRef.current?.addNodesToActive(nodes)
+              }
+              onOpenMindMapTab={() => {
+                setActiveTab("mindmap")
+                writeLessonTab(lesson.id, "mindmap")
+              }}
             />
           </TabsContent>
         </div>

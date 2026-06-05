@@ -1,10 +1,12 @@
 import type {
+  ChatSourceScope,
   LessonAnalysisContent,
   LessonAnalysisEntry,
   LessonChatMessage,
   LessonChatThread,
   SchoolExercise,
 } from "@/types/lesson-analysis"
+import { emptyChatSourceScope } from "@/types/lesson-analysis"
 import type { Lesson } from "@/types/lesson"
 
 export function newId(): string {
@@ -145,12 +147,19 @@ export function createAnalysisEntry(params: {
   }
 }
 
-export function createChatThread(analysisId?: string, title = "استفسار عن الدرس"): LessonChatThread {
+export function createChatThread(
+  opts?: {
+    analysisId?: string
+    title?: string
+    sourceScope?: ChatSourceScope
+  }
+): LessonChatThread {
   const now = new Date()
   return {
     id: newId(),
-    analysisId,
-    title,
+    analysisId: opts?.analysisId,
+    title: opts?.title ?? "محادثة جديدة",
+    sourceScope: opts?.sourceScope ?? emptyChatSourceScope(),
     messages: [],
     createdAt: now,
     updatedAt: now,
