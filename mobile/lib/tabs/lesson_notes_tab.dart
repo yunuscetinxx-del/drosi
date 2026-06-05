@@ -5,6 +5,7 @@ import '../models/lesson.dart';
 import '../models/lesson_note.dart';
 import '../screens/lesson_detail_screen.dart' show LessonItemFactory;
 import '../screens/lesson_note_editor_screen.dart';
+import '../screens/lesson_note_view_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 
@@ -43,7 +44,8 @@ class LessonNotesTab extends StatelessWidget {
                 final note = notes[i];
                 return _NoteCard(
                   note: note,
-                  onTap: () => _open(context, note),
+                  onTap: () => _view(context, note),
+                  onEdit: () => _edit(context, note),
                   onDelete: () => _delete(context, note),
                 );
               },
@@ -73,7 +75,7 @@ class LessonNotesTab extends StatelessWidget {
   void _create(BuildContext context) {
     final note = LessonItemFactory.lessonNote();
     onNotesChanged([...lesson.lessonNotes, note]);
-    _open(context, note);
+    _edit(context, note);
   }
 
   Future<void> _createAndPaste(BuildContext context) async {
@@ -102,7 +104,22 @@ class LessonNotesTab extends StatelessWidget {
     );
   }
 
-  void _open(BuildContext context, LessonNote note) {
+  void _view(BuildContext context, LessonNote note) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (viewCtx) => LessonNoteViewScreen(
+          note: note,
+          onEdit: () {
+            Navigator.pop(viewCtx);
+            _edit(context, note);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _edit(BuildContext context, LessonNote note) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -153,16 +170,18 @@ class _NoteCard extends StatelessWidget {
   const _NoteCard({
     required this.note,
     required this.onTap,
+    required this.onEdit,
     required this.onDelete,
   });
 
   final LessonNote note;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   String _preview(String text) {
     final t = text.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (t.isEmpty) return 'ملاحظة فارغة — اضغط للكتابة أو اللصق';
+    if (t.isEmpty) return 'ملاحظة فارغة — اضغط للعرض أو زر التعديل';
     return t.length > 140 ? '${t.substring(0, 140)}…' : t;
   }
 
@@ -251,6 +270,13 @@ class _NoteCard extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'تعديل',
+                icon: Icon(Icons.edit_outlined,
+                    color: scheme.primary.withValues(alpha: 0.85)),
+                onPressed: onEdit,
+              ),
+              IconButton(
+                tooltip: 'حذف',
                 icon: Icon(Icons.delete_outline,
                     color: Colors.red.withValues(alpha: 0.7)),
                 onPressed: onDelete,

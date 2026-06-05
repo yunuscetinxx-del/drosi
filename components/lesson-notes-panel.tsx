@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useTranslations } from "@/components/locale-provider"
-import { ClipboardPaste, Plus, StickyNote, Trash2 } from "lucide-react"
+import { ClipboardPaste, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
 
 interface LessonNotesPanelProps {
   notes: LessonNoteEntry[]
@@ -57,18 +58,34 @@ export function LessonNotesPanel({
 }: LessonNotesPanelProps) {
   const { t } = useTranslations()
   const notes = useMemo(() => sortLessonNotes(notesProp), [notesProp])
+  const [viewingId, setViewingId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState("")
   const [draftContent, setDraftContent] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
+  const viewingNote = notes.find((n) => n.id === viewingId) ?? null
   const editingNote = notes.find((n) => n.id === editingId) ?? null
+
+  const openViewer = useCallback((note: LessonNoteEntry) => {
+    setViewingId(note.id)
+  }, [])
+
+  const closeViewer = useCallback(() => {
+    setViewingId(null)
+  }, [])
 
   const openEditor = useCallback((note: LessonNoteEntry) => {
     setEditingId(note.id)
     setDraftTitle(note.title)
     setDraftContent(note.content)
   }, [])
+
+  const openEditorFromView = useCallback(() => {
+    if (!viewingNote) return
+    closeViewer()
+    openEditor(viewingNote)
+  }, [closeViewer, openEditor, viewingNote])
 
   const closeEditor = useCallback(() => {
     setEditingId(null)
@@ -132,8 +149,9 @@ export function LessonNotesPanel({
     if (!deleteId) return
     onNotesChange(notes.filter((n) => n.id !== deleteId))
     if (editingId === deleteId) closeEditor()
+    if (viewingId === deleteId) closeViewer()
     setDeleteId(null)
-  }, [closeEditor, deleteId, editingId, notes, onNotesChange])
+  }, [closeEditor, closeViewer, deleteId, editingId, notes, onNotesChange, viewingId])
 
   const charCount = draftContent.length
   const lineCount = draftContent ? draftContent.split("\n").length : 0
@@ -181,7 +199,7 @@ export function LessonNotesPanel({
             <Card
               key={note.id}
               className="cursor-pointer transition-colors hover:border-primary/40"
-              onClick={() => openEditor(note)}
+              onClick={() => openViewer(note)}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-2">
@@ -197,18 +215,33 @@ export function LessonNotesPanel({
                     </p>
                   </div>
                   {!readOnly && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDeleteId(note.id)
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex shrink-0 flex-col">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title={t("lesson.editNote")}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEditor(note)
+                        }}
+                      >
+                        <Pencil className="h-4 w-4 text-primary" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        title={t("common.delete")}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteId(note.id)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -217,6 +250,42 @@ export function LessonNotesPanel({
         </div>
       )}
 
+      {/* عرض للقراءة */}
+      <Dialog open={viewingId !== null} onOpenChange={(open) => !open && closeViewer()}>
+        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 p-0 sm:max-w-3xl">
+          <DialogHeader className="border-b px-4 py-3 sm:px-6">
+            <DialogTitle>
+              {viewingNote?.title.trim() || t("lesson.untitledNote")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 py-4 sm:px-6">
+            {viewingNote && (
+              <p className="text-xs text-muted-foreground">
+                {t("lesson.noteLastEdit")}: {formatDate(viewingNote.updatedAt)} ·{" "}
+                {viewingNote.content.length} {t("lesson.chars")}
+              </p>
+            )}
+            <ScrollArea className="max-h-[min(60vh,480px)] rounded-md border bg-muted/30 p-4">
+              <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
+                {viewingNote?.content.trim() || t("lesson.noteEmptyPreview")}
+              </pre>
+            </ScrollArea>
+          </div>
+          <DialogFooter className="border-t px-4 py-3 sm:px-6">
+            <Button type="button" variant="outline" onClick={closeViewer}>
+              {t("common.close")}
+            </Button>
+            {!readOnly && (
+              <Button type="button" onClick={openEditorFromView}>
+                <Pencil className="h-4 w-4 ml-1" />
+                {t("lesson.editNote")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* تحرير */}
       <Dialog open={editingId !== null} onOpenChange={(open) => !open && closeEditor()}>
         <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 p-0 sm:max-w-3xl">
           <DialogHeader className="border-b px-4 py-3 sm:px-6">
