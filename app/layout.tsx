@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { Noto_Sans_Arabic, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { LocaleProvider } from '@/components/locale-provider'
 import { RestoreAppNavigation } from '@/components/restore-app-navigation'
 import { AppClientProviders } from '@/components/app-client-providers'
-import { getDirection, resolveLocale } from '@/lib/i18n/config'
+import { getDirection, resolveRequestLocale } from '@/lib/i18n/config'
 import { LOCALE_COOKIE } from '@/lib/i18n/config'
 import { getMessages } from '@/lib/i18n/messages'
 import './globals.css'
@@ -20,9 +20,17 @@ const geistMono = Geist_Mono({
   variable: '--font-mono'
 })
 
-export async function generateMetadata(): Promise<Metadata> {
+async function getRequestLocale() {
   const cookieStore = await cookies()
-  const locale = resolveLocale(cookieStore.get(LOCALE_COOKIE)?.value)
+  const headerStore = await headers()
+  return resolveRequestLocale(
+    cookieStore.get(LOCALE_COOKIE)?.value,
+    headerStore.get('accept-language')
+  )
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getRequestLocale()
   const messages = getMessages(locale)
 
   return {
@@ -46,8 +54,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const cookieStore = await cookies()
-  const locale = resolveLocale(cookieStore.get(LOCALE_COOKIE)?.value)
+  const locale = await getRequestLocale()
   const dir = getDirection(locale)
 
   return (

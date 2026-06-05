@@ -47,6 +47,14 @@ export function LocaleProvider({
     setLocaleState(initialLocale)
   }, [initialLocale])
 
+  // احفظ لغة المتصفح في الكوكي عند أول زيارة (بدون إعادة تحميل).
+  useEffect(() => {
+    const hasCookie = document.cookie
+      .split(";")
+      .some((c) => c.trim().startsWith(`${LOCALE_COOKIE}=`))
+    if (!hasCookie) setLocaleCookie(initialLocale)
+  }, [initialLocale])
+
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next)
     setLocaleCookie(next)
