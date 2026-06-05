@@ -7,6 +7,7 @@ import '../models/mind_map.dart';
 import '../models/word_page.dart';
 import '../providers/app_state.dart';
 import '../models/lesson_note.dart';
+import '../tabs/lesson_ai_tab.dart';
 import '../tabs/lesson_details_tab.dart';
 import '../tabs/lesson_images_tab.dart';
 import '../tabs/lesson_mind_maps_tab.dart';
@@ -117,7 +118,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         }
       },
       child: DefaultTabController(
-        length: 5,
+        length: 6,
         child: Scaffold(
           appBar: AppBar(
             flexibleSpace: Container(
@@ -175,6 +176,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                 Tab(icon: Icon(Icons.image_outlined), text: 'الصور'),
                 Tab(icon: Icon(Icons.account_tree_outlined), text: 'الخرائط'),
                 Tab(icon: Icon(Icons.article_outlined), text: 'صفحات'),
+                Tab(icon: Icon(Icons.auto_awesome), text: 'ذكاء'),
               ],
             ),
           ),
@@ -204,6 +206,11 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                 lesson: _lesson,
                 onWordPagesChanged: (pages) =>
                     _patch(_lesson.copyWith(wordPages: pages)),
+              ),
+              LessonAiTab(
+                lesson: _lesson,
+                onChanged: _patch,
+                onAddToNotes: _appendToNotes,
               ),
             ],
           ),

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Lesson, ImageAnnotation, ImageAIAnalysis, MindMapNode } from "@/types/lesson"
+import { Lesson, ImageAnnotation, ImageAIAnalysis } from "@/types/lesson"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ImageUploader } from "@/components/image-uploader"
-import { AIAnalysis } from "@/components/ai-analysis"
+import { LessonAiHub } from "@/components/lesson-ai-hub"
+import { getLessonAnalyses } from "@/lib/lesson-analysis"
 import { WordEditor } from "@/components/word-editor"
 import { LessonNotesPanel } from "@/components/lesson-notes-panel"
 import { appendToLessonNotes, getLessonNotes } from "@/lib/lesson-notes"
@@ -113,11 +114,8 @@ export function LessonDetail({
     })
   }
 
-  const handleAddMindMapNodes = (nodes: Omit<MindMapNode, "id">[]) => {
-    mindMapsEditorRef.current?.addNodesToActive(nodes)
-  }
-
   const lessonNotes = getLessonNotes(lesson)
+  const lessonAnalyses = getLessonAnalyses(lesson)
 
   const handleAddToNotes = (text: string) => {
     onUpdate(lesson.id, { lessonNotes: appendToLessonNotes(lesson, text) })
@@ -234,8 +232,13 @@ export function LessonDetail({
               className="inline-flex h-auto min-h-11 w-full shrink-0 flex-none flex-row items-center justify-start gap-2.5 rounded-lg border border-transparent px-2.5 py-2.5 text-start text-xs font-medium transition-colors hover:bg-muted/70 data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=inactive]:text-muted-foreground sm:min-h-12 sm:text-sm"
             >
               <Sparkles className="size-4 shrink-0 text-violet-400 sm:size-[1.05rem]" />
-              <span className="min-w-0 flex-1 truncate leading-snug text-violet-300 sm:text-violet-400">
-                {t("lesson.tabAi")}
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate leading-snug text-violet-300 sm:text-violet-400">
+                <span className="truncate">{t("lesson.tabAi")}</span>
+                {lessonAnalyses.length > 0 && (
+                  <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] tabular-nums sm:text-xs">
+                    {lessonAnalyses.length}
+                  </Badge>
+                )}
               </span>
             </TabsTrigger>
           </TabsList>
@@ -458,32 +461,15 @@ export function LessonDetail({
             />
           </TabsContent>
 
-          {/* AI Analysis */}
+          {/* AI — تحليل صفحات مدرسية + سجل + دردشة */}
           <TabsContent
             value="ai"
-            className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 outline-none data-[state=inactive]:hidden"
+            className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden outline-none data-[state=inactive]:hidden"
           >
-            <AIAnalysis
+            <LessonAiHub
               lesson={lesson}
               readOnly={readOnly}
-              onAddMindMapNodes={handleAddMindMapNodes}
-              onSetImageAIAnalysis={(imageId, analysis) =>
-                onSetImageAIAnalysis(lesson.id, imageId, analysis)
-              }
-              onAddImageWithAnalysis={(url, analysis) => {
-                const id = Math.random().toString(36).substring(2, 11)
-                onUpdate(lesson.id, {
-                  images: [
-                    ...lesson.images,
-                    {
-                      id,
-                      url,
-                      annotations: [],
-                      aiAnalysis: { ...analysis, analyzedAt: new Date() },
-                    },
-                  ],
-                })
-              }}
+              onUpdateLesson={(updates) => onUpdate(lesson.id, updates)}
               onAddToNotes={readOnly ? () => {} : handleAddToNotes}
             />
           </TabsContent>

@@ -1,4 +1,5 @@
 import type { ImageAnnotation, Lesson, LessonImage, WordPage } from "@/types/lesson"
+import type { LessonAnalysisEntry, LessonChatThread } from "@/types/lesson-analysis"
 import { normalizeMindMaps, normalizeMindMapFolders } from "@/lib/mind-maps-utils"
 
 /** Restore Date fields after JSON.parse (client or server). */
@@ -27,6 +28,20 @@ export function reviveLesson(l: Lesson): Lesson {
     })),
     mindMaps: normalizeMindMaps(l, l.id),
     mindMapFolders: normalizeMindMapFolders(l),
+    lessonAnalyses: (l.lessonAnalyses ?? []).map((a: LessonAnalysisEntry) => ({
+      ...a,
+      createdAt: new Date(a.createdAt as unknown as string),
+      updatedAt: new Date(a.updatedAt as unknown as string),
+    })),
+    lessonChatThreads: (l.lessonChatThreads ?? []).map((t: LessonChatThread) => ({
+      ...t,
+      createdAt: new Date(t.createdAt as unknown as string),
+      updatedAt: new Date(t.updatedAt as unknown as string),
+      messages: (t.messages ?? []).map((m) => ({
+        ...m,
+        createdAt: new Date(m.createdAt as unknown as string),
+      })),
+    })),
   }
 }
 

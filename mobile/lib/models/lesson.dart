@@ -1,4 +1,5 @@
 import 'json_utils.dart';
+import 'lesson_analysis.dart';
 import 'lesson_image.dart';
 import 'lesson_note.dart';
 import 'mind_map.dart';
@@ -18,6 +19,8 @@ class Lesson {
     required this.keyPoints,
     required this.notes,
     required this.lessonNotes,
+    required this.lessonAnalyses,
+    required this.lessonChatThreads,
     required this.images,
     required this.wordPages,
     required this.mindMaps,
@@ -35,6 +38,8 @@ class Lesson {
   List<String> keyPoints;
   String notes;
   List<LessonNote> lessonNotes;
+  List<LessonAnalysisEntry> lessonAnalyses;
+  List<LessonChatThread> lessonChatThreads;
   List<LessonImage> images;
   List<WordPage> wordPages;
   List<MindMap> mindMaps;
@@ -47,7 +52,8 @@ class Lesson {
   factory Lesson.fromJson(Map<String, dynamic> json) {
     const known = {
       'id', 'title', 'subject', 'description', 'summary', 'keyPoints',
-      'notes', 'lessonNotes', 'images', 'wordPages', 'mindMaps', 'mindMapFolders',
+      'notes', 'lessonNotes', 'lessonAnalyses', 'lessonChatThreads',
+      'images', 'wordPages', 'mindMaps', 'mindMapFolders',
       'createdAt', 'updatedAt',
     };
     final extra = <String, dynamic>{};
@@ -64,6 +70,14 @@ class Lesson {
       keyPoints: asStringList(json['keyPoints']),
       notes: json['notes']?.toString() ?? '',
       lessonNotes: _parseLessonNotes(json),
+      lessonAnalyses: (json['lessonAnalyses'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(LessonAnalysisEntry.fromJson)
+          .toList(),
+      lessonChatThreads: (json['lessonChatThreads'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(LessonChatThread.fromJson)
+          .toList(),
       images: (json['images'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(LessonImage.fromJson)
@@ -96,6 +110,8 @@ class Lesson {
         'keyPoints': keyPoints,
         'notes': notes,
         'lessonNotes': lessonNotes.map((e) => e.toJson()).toList(),
+        'lessonAnalyses': lessonAnalyses.map((e) => e.toJson()).toList(),
+        'lessonChatThreads': lessonChatThreads.map((e) => e.toJson()).toList(),
         'images': images.map((e) => e.toJson()).toList(),
         'wordPages': wordPages.map((e) => e.toJson()).toList(),
         'mindMaps': mindMaps.map((e) => e.toJson()).toList(),
@@ -112,6 +128,8 @@ class Lesson {
     List<String>? keyPoints,
     String? notes,
     List<LessonNote>? lessonNotes,
+    List<LessonAnalysisEntry>? lessonAnalyses,
+    List<LessonChatThread>? lessonChatThreads,
     List<LessonImage>? images,
     List<WordPage>? wordPages,
     List<MindMap>? mindMaps,
@@ -127,6 +145,8 @@ class Lesson {
       keyPoints: keyPoints ?? this.keyPoints,
       notes: notes ?? this.notes,
       lessonNotes: lessonNotes ?? this.lessonNotes,
+      lessonAnalyses: lessonAnalyses ?? this.lessonAnalyses,
+      lessonChatThreads: lessonChatThreads ?? this.lessonChatThreads,
       images: images ?? this.images,
       wordPages: wordPages ?? this.wordPages,
       mindMaps: mindMaps ?? this.mindMaps,

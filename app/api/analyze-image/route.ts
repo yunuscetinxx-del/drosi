@@ -1,84 +1,119 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AI_MODEL, AI_MODEL_CONFIG } from "@/lib/ai-model"
+import { AI_MODEL_CONFIG } from "@/lib/ai-model"
+import {
+  mergeProfileFromAnalysis,
+  parseLearningProfile,
+} from "@/lib/ai-learning-profile"
 import { buildImageAnalysisPrompt } from "@/lib/image-analysis-prompt"
-import { formatOpenRouterError } from "@/lib/openrouter-errors"
+import { parseAnalysisContent } from "@/lib/lesson-analysis"
+import { callOpenRouter, parseJsonFromModel } from "@/lib/openrouter-client"
+import { buildSchoolAnalysisPrompt } from "@/lib/school-analysis-prompt"
+import { getSessionFromRequest } from "@/lib/auth-server"
+import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 
 export async function POST(req: NextRequest) {
-  let body: { imageUrl?: string; instructions?: string }
+  const session = await getSessionFromRequest(req)
+  if (!session) {
+    return NextResponse.json({ error: "غير مصرّح" }, { status: 401 })
+  }
+
+  let body: {
+    imageUrl?: string
+    instructions?: string
+    mode?: "general" | "school"
+    subject?: string
+    level?: string
+    subjectMode?: "auto" | "manual"
+    lessonTitle?: string
+    lessonSubject?: string
+    updateProfile?: boolean
+  }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 })
   }
 
-  const { imageUrl, instructions } = body
+  const { imageUrl, instructions, mode = "school", subject, level, subjectMode, lessonTitle, lessonSubject } =
+    body
   if (!imageUrl || typeof imageUrl !== "string") {
     return NextResponse.json({ error: "رابط الصورة مطلوب" }, { status: 400 })
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: "OPENROUTER_API_KEY غير مضبوط" }, { status: 500 })
+  let userProfile = null
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { aiLearningProfile: true },
+    })
+    userProfile = parseLearningProfile(user?.aiLearningProfile)
+  } catch {
+    /* ignore */
   }
 
-  const prompt = buildImageAnalysisPrompt(
-    typeof instructions === "string" ? instructions : undefined
-  )
+  const isSchool = mode === "school"
+  const prompt = isSchool
+    ? buildSchoolAnalysisPrompt({
+        subject,
+        level,
+        mode: subjectMode ?? (subject || level ? "manual" : "auto"),
+        instructions,
+        lessonTitle,
+        lessonSubject,
+        userProfile,
+      })
+    : buildImageAnalysisPrompt(instructions)
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://durusi.app",
-        "X-Title": "Durusi - Image Analyzer",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ],
-        temperature: AI_MODEL_CONFIG.temperature,
-        max_tokens: AI_MODEL_CONFIG.maxTokensImage,
-      }),
-    })
+    const text = await callOpenRouter(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      { maxTokens: isSchool ? 2000 : AI_MODEL_CONFIG.maxTokensImage, title: "Durusi - Analyzer" }
+    )
 
-    if (!response.ok) {
-      const err = await response.text()
-      console.log("[v0] OpenRouter image analysis error:", err)
-      return NextResponse.json(
-        { error: formatOpenRouterError(err, response.status) },
-        { status: response.status === 429 ? 429 : 500 }
-      )
+    const fallback = {
+      description: text || "تعذر تحليل الصورة",
+      keyElements: [] as string[],
+      studyNotes: [] as string[],
+      relatedConcepts: [] as string[],
     }
 
-    const data = await response.json()
-    const text = data.choices?.[0]?.message?.content ?? ""
+    const raw = parseJsonFromModel<Record<string, unknown>>(text, fallback)
+    const content = parseAnalysisContent(raw)
 
-    let analysis
-    try {
-      const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-      analysis = JSON.parse(cleaned)
-    } catch {
-      console.log("[v0] Image analysis JSON parse failed, raw text:", text)
-      analysis = {
-        description: text || "تعذر تحليل الصورة",
-        keyElements: [] as string[],
-        studyNotes: [] as string[],
-        relatedConcepts: [] as string[],
+    if (body.updateProfile !== false && isSchool) {
+      try {
+        const profile = userProfile ?? parseLearningProfile(null)
+        const updated = mergeProfileFromAnalysis(
+          profile,
+          content,
+          lessonSubject || subject || "عام"
+        )
+        await prisma.user.update({
+          where: { id: session.userId },
+          data: { aiLearningProfile: updated as unknown as Prisma.InputJsonValue },
+        })
+      } catch (e) {
+        console.error("[analyze-image profile]", e)
       }
     }
 
-    return NextResponse.json({ analysis })
+    return NextResponse.json({
+      analysis: raw,
+      content,
+      mode: isSchool ? "school" : "general",
+    })
   } catch (err) {
-    console.log("[v0] Image analysis fetch error:", err)
-    return NextResponse.json({ error: "خطأ في الاتصال بـ OpenRouter" }, { status: 500 })
+    console.log("[analyze-image]", err)
+    const msg = err instanceof Error ? err.message : "خطأ في الاتصال بـ OpenRouter"
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

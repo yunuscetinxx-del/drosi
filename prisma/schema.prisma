@@ -14,9 +14,11 @@ model User {
   id              String        @id @default(uuid())
   email           String        @unique
   passwordHash    String
-  lessons         Json
-  calendarEvents  Json          @default("[]")
-  isAdmin         Boolean       @default(false)
+  lessons            Json
+  calendarEvents     Json          @default("[]")
+  /// ملف تعلّم المستخدم الذي يبنيه الذكاء (JSON منظم — يُصدَّر MD للأدمن)
+  aiLearningProfile  Json          @default("{}")
+  isAdmin            Boolean       @default(false)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   lessonShares    LessonShare[]

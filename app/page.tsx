@@ -149,9 +149,14 @@ export default function HomePage() {
                 </span>
               )}
               {me?.isAdmin && (
-                <Badge variant="secondary" className="text-xs">
-                  {t("auth.admin")}
-                </Badge>
+                <>
+                  <Badge variant="secondary" className="text-xs">
+                    {t("auth.admin")}
+                  </Badge>
+                  <Button asChild variant="outline" size="sm">
+                    <a href="/admin">لوحة الأدمن</a>
+                  </Button>
+                </>
               )}
               <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
                 <LogOut className="w-4 h-4 ml-2" />

@@ -1,3 +1,5 @@
+import type { LessonAnalysisEntry, LessonChatThread } from "@/types/lesson-analysis"
+
 export interface Lesson {
   id: string
   title: string
@@ -8,6 +10,10 @@ export interface Lesson {
   notes: string
   /** ملاحظات متعددة (تطبيق الجوال والمزامنة) */
   lessonNotes?: LessonNoteEntry[]
+  /** سجل تحليلات الذكاء الاصطناعي لهذا الدرس */
+  lessonAnalyses?: LessonAnalysisEntry[]
+  /** دردشات استفسار عن نقاط الدرس */
+  lessonChatThreads?: LessonChatThread[]
   images: LessonImage[]
   wordPages: WordPage[]
   mindMaps: MindMap[]

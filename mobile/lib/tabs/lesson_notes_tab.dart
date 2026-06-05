@@ -7,6 +7,7 @@ import '../screens/lesson_detail_screen.dart' show LessonItemFactory;
 import '../screens/lesson_note_editor_screen.dart';
 import '../screens/lesson_note_view_screen.dart';
 import '../theme/app_theme.dart';
+import '../utils/lesson_note_content.dart';
 import '../widgets/empty_state.dart';
 
 class LessonNotesTab extends StatelessWidget {
@@ -108,6 +109,7 @@ class LessonNotesTab extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
+        fullscreenDialog: true,
         builder: (viewCtx) => LessonNoteViewScreen(
           note: note,
           onEdit: () {
@@ -180,9 +182,9 @@ class _NoteCard extends StatelessWidget {
   final VoidCallback onDelete;
 
   String _preview(String text) {
-    final t = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final t = notePreviewText(text);
     if (t.isEmpty) return 'ملاحظة فارغة — اضغط للعرض أو زر التعديل';
-    return t.length > 140 ? '${t.substring(0, 140)}…' : t;
+    return t;
   }
 
   String _formatDate(DateTime d) {
@@ -193,7 +195,7 @@ class _NoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final chars = note.content.length;
+    final chars = notePreviewText(note.content, max: 100000).length;
 
     return Card(
       clipBehavior: Clip.antiAlias,
