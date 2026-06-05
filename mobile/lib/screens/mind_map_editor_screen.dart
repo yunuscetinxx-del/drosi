@@ -105,6 +105,35 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
   int _childCount(String parentId) =>
       _map.nodes.where((n) => n.parentId == parentId).length;
 
+  bool _wouldCreateCycle(String fromId, String toId) {
+    if (fromId == toId) return true;
+    final byId = {for (final n in _map.nodes) n.id: n};
+    var cur = fromId;
+    while (true) {
+      final parentId = byId[cur]?.parentId;
+      if (parentId == null) return false;
+      if (parentId == toId) return true;
+      cur = parentId;
+    }
+  }
+
+  void _connectNodes(String fromId, String toId) {
+    if (_wouldCreateCycle(fromId, toId)) return;
+    final idx = _map.nodes.indexWhere((n) => n.id == toId);
+    if (idx == -1) return;
+    _map.nodes[idx].parentId = fromId;
+    if (_map.nodes[idx].role != MindMapNodeRole.main) {
+      _map.nodes[idx].role = MindMapNodeRole.branch;
+    }
+    _commit();
+  }
+
+  void _unlinkNode(MindMapNode node) {
+    if (node.parentId == null) return;
+    node.parentId = null;
+    _commit();
+  }
+
   void _moveNode(String id, Offset delta) {
     final node = _map.nodes.firstWhere((n) => n.id == id);
     node.x += delta.dx;
@@ -239,6 +268,15 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
                   _addSibling(node);
                 },
               ),
+            if (node.parentId != null)
+              ListTile(
+                leading: const Icon(Icons.link_off, color: Colors.orange),
+                title: const Text('فك الربط من العقدة الأم'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _unlinkNode(node);
+                },
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Align(
@@ -365,6 +403,7 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
             onMenuNode: _showNodeMenu,
             onTapEmpty: () => setState(() => _selectedId = null),
             onLongPressEmpty: _showCanvasMenu,
+            onConnect: _connectNodes,
           ),
           Positioned(
             left: 12,
@@ -381,7 +420,7 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
                   ),
                 ),
                 child: Text(
-                  'ضغطتان = تعديل • ضغطة مطولة على العقدة = قائمة • على الخلفية = إضافة',
+                  'اسحب ↔ على يمين العقدة لربطها • ضغطتان = تعديل • ضغطة مطولة = قائمة',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

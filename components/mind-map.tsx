@@ -63,8 +63,34 @@ const MAP_BASE_H = Math.round((520 * MAP_BASE_W) / 900)
 
 const TOOLBAR_POS_KEY = "durusi_mindmap_toolbar_pos"
 
-type ConnectingState = { fromId: string } | null
+type ConnectDragState = { fromId: string; toX: number; toY: number } | null
 type CanvasTool = "pan" | "select"
+
+function getConnectHandleAnchor(node: MindMapNode) {
+  const layout = getMindMapNodeLayout(node)
+  return { cx: node.x + layout.bodyW + 10, cy: node.y + layout.bodyH / 2 }
+}
+
+function nodeAtWorldPoint(nodes: MindMapNode[], x: number, y: number): MindMapNode | null {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const b = getNodeWorldBounds(nodes[i])
+    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return nodes[i]
+  }
+  return null
+}
+
+function wouldCreateCycle(fromId: string, toId: string, nodes: MindMapNode[]): boolean {
+  if (fromId === toId) return true
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  let cur: string | undefined = fromId
+  while (cur) {
+    const parentId = byId.get(cur)?.parentId ?? undefined
+    if (!parentId) return false
+    if (parentId === toId) return true
+    cur = parentId
+  }
+  return false
+}
 
 function readStoredToolbarPos(): { x: number; y: number } {
   if (typeof window === "undefined") return { x: 12, y: 12 }
@@ -172,7 +198,12 @@ export function MindMap({
   const [zoom, setZoom] = useState(1)
   const [editingNode, setEditingNode] = useState<string | null>(null)
   const [newNodeText, setNewNodeText] = useState("")
-  const [connecting, setConnecting] = useState<ConnectingState>(null)
+  const [connectDrag, setConnectDrag] = useState<ConnectDragState>(null)
+  const [connectDropTargetId, setConnectDropTargetId] = useState<string | null>(null)
+  const connectDragRef = useRef<ConnectDragState>(null)
+  useEffect(() => {
+    connectDragRef.current = connectDrag
+  }, [connectDrag])
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   /** يد = تحريك اللوحة فقط؛ تحديد = سحب العقد لتغيير موضعها */
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("select")
@@ -661,7 +692,7 @@ export function MindMap({
     (e: React.MouseEvent, nodeId: string) => {
       e.stopPropagation()
       if (readonly) return
-      if (connecting) return
+      if (connectDrag) return
       if (editingNode === nodeId) return
 
       const mod = isMultiSelectModifier(e)
@@ -701,15 +732,16 @@ export function MindMap({
       setDraggingOffset(offset)
       setDragging(nodeId)
     },
-    [nodes, readonly, connecting, svgToWorld, editingNode, selectedNodeIds, isMultiSelectModifier]
+    [nodes, readonly, connectDrag, svgToWorld, editingNode, selectedNodeIds, isMultiSelectModifier]
   )
 
   // Canvas pan or marquee select on empty background
   const handleSvgMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (draggingRef.current) return
-      if (connecting) {
-        setConnecting(null)
+      if (connectDrag) {
+        setConnectDrag(null)
+        setConnectDropTargetId(null)
         return
       }
       if (effectiveCanvasTool === "select" && !readonly) {
@@ -726,7 +758,7 @@ export function MindMap({
       panStartRef.current = { x: e.clientX, y: e.clientY }
       setPanning(true)
     },
-    [connecting, readonly, effectiveCanvasTool, isMultiSelectModifier, selectedNodeIds, svgToWorld]
+    [connectDrag, readonly, effectiveCanvasTool, isMultiSelectModifier, selectedNodeIds, svgToWorld]
   )
 
   const handleMouseMove = useCallback(
@@ -845,29 +877,70 @@ export function MindMap({
     }
   }, [dragging, flushDragMove])
 
-  const handleConnectClick = useCallback(
+  const finishConnectDrag = useCallback(
+    (clientX: number, clientY: number) => {
+      const drag = connectDragRef.current
+      if (!drag) return
+      const world = svgToWorld(clientX, clientY)
+      const target = nodeAtWorldPoint(nodes, world.x, world.y)
+      if (
+        target &&
+        target.id !== drag.fromId &&
+        !wouldCreateCycle(drag.fromId, target.id, nodes)
+      ) {
+        onUpdateNode(target.id, { parentId: drag.fromId })
+      }
+      setConnectDrag(null)
+      setConnectDropTargetId(null)
+    },
+    [nodes, onUpdateNode, svgToWorld]
+  )
+
+  const updateConnectDrag = useCallback(
+    (clientX: number, clientY: number) => {
+      const world = svgToWorld(clientX, clientY)
+      setConnectDrag((prev) => (prev ? { ...prev, toX: world.x, toY: world.y } : null))
+      const target = nodeAtWorldPoint(nodes, world.x, world.y)
+      const fromId = connectDragRef.current?.fromId
+      setConnectDropTargetId(
+        target && fromId && target.id !== fromId ? target.id : null
+      )
+    },
+    [nodes, svgToWorld]
+  )
+
+  const handleConnectHandleMouseDown = useCallback(
     (e: React.MouseEvent, nodeId: string) => {
       e.stopPropagation()
+      e.preventDefault()
+      if (readonly) return
       const self = nodes.find((x) => x.id === nodeId)
       if (e.shiftKey && self?.parentId) {
         onUpdateNode(nodeId, { parentId: null })
-        setConnecting(null)
+        setConnectDrag(null)
+        setConnectDropTargetId(null)
         return
       }
-      if (!connecting) {
-        setConnecting({ fromId: nodeId })
-        return
-      }
-      if (connecting.fromId === nodeId) {
-        setConnecting(null)
-        return
-      }
-      // set parentId on the target node
-      onUpdateNode(nodeId, { parentId: connecting.fromId })
-      setConnecting(null)
+      const node = nodes.find((n) => n.id === nodeId)
+      if (!node) return
+      const anchor = getConnectHandleAnchor(node)
+      setConnectDropTargetId(null)
+      setConnectDrag({ fromId: nodeId, toX: anchor.cx, toY: anchor.cy })
     },
-    [connecting, onUpdateNode, nodes]
+    [readonly, nodes, onUpdateNode]
   )
+
+  useEffect(() => {
+    if (!connectDrag) return
+    const onMove = (ev: MouseEvent) => updateConnectDrag(ev.clientX, ev.clientY)
+    const onUp = (ev: MouseEvent) => finishConnectDrag(ev.clientX, ev.clientY)
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [connectDrag, finishConnectDrag, updateConnectDrag])
 
   const handleUnlinkParent = useCallback(
     (e: React.MouseEvent, nodeId: string) => {
@@ -875,7 +948,8 @@ export function MindMap({
       const n = nodes.find((x) => x.id === nodeId)
       if (!n?.parentId) return
       onUpdateNode(nodeId, { parentId: null })
-      setConnecting(null)
+      setConnectDrag(null)
+      setConnectDropTargetId(null)
     },
     [nodes, onUpdateNode]
   )
@@ -1280,8 +1354,8 @@ export function MindMap({
               <BoxSelect className="w-3.5 h-3.5" />
             </Button>
           )}
-          {connecting && (
-            <span className="flex h-8 max-w-[10rem] items-center truncate rounded border border-amber-400/30 bg-amber-400/10 px-2 text-[10px] text-amber-400">
+          {connectDrag && (
+            <span className="flex h-8 max-w-[12rem] items-center truncate rounded border border-violet-400/30 bg-violet-400/10 px-2 text-[10px] text-violet-300">
               {t("mindMap.connectingHint")}
             </span>
           )}
@@ -1327,7 +1401,7 @@ export function MindMap({
               ? "grabbing"
               : marquee
                 ? "crosshair"
-              : connecting
+              : connectDrag
                 ? "crosshair"
                 : multiSelectHeld
                   ? "crosshair"
@@ -1366,6 +1440,26 @@ export function MindMap({
               </filter>
             ))}
           </defs>
+
+          {/* خط الربط أثناء السحب */}
+          {connectDrag &&
+            (() => {
+              const from = nodes.find((n) => n.id === connectDrag.fromId)
+              if (!from) return null
+              const anchor = getConnectHandleAnchor(from)
+              const pathD = edgePath(anchor.cx, anchor.cy, connectDrag.toX, connectDrag.toY)
+              return (
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke="#8b5cf6"
+                  strokeWidth="2.5"
+                  strokeDasharray="8 5"
+                  strokeOpacity="0.9"
+                  pointerEvents="none"
+                />
+              )
+            })()}
 
           {/* Edges */}
           {nodes
@@ -1452,7 +1546,8 @@ export function MindMap({
             const isSearchMatch = searchLower ? searchMatchIds.has(node.id) : false
             const isSearchMiss = searchLower ? !isSearchMatch : false
             const isDraggingThis = activeDragIds.includes(node.id)
-            const isConnectSource = connecting?.fromId === node.id
+            const isConnectSource = connectDrag?.fromId === node.id
+            const isConnectDropTarget = connectDropTargetId === node.id
             const maxChars = role === "main" ? 16 : 12
             const displayText =
               node.text.length > maxChars ? node.text.slice(0, maxChars) + "…" : node.text
@@ -1471,7 +1566,8 @@ export function MindMap({
                   e.stopPropagation()
                   e.preventDefault()
                   if (readonly) return
-                  setConnecting(null)
+                  setConnectDrag(null)
+                  setConnectDropTargetId(null)
                   setSelectedNodeIds(new Set([node.id]))
                   setEditingNode(node.id)
                 }}
@@ -1482,8 +1578,10 @@ export function MindMap({
                     ? "default"
                     : isDraggingThis
                       ? "grabbing"
-                      : connecting
-                        ? "pointer"
+                      : connectDrag
+                        ? isConnectDropTarget
+                          ? "copy"
+                          : "crosshair"
                         : "grab",
                 }}
               >
@@ -1494,7 +1592,7 @@ export function MindMap({
                   className="pointer-events-all"
                 />
 
-                {(isHovered || isConnectSource || isSelected || isSearchMatch) && (
+                {(isHovered || isConnectSource || isConnectDropTarget || isSelected || isSearchMatch) && (
                   <rect
                     x="-4"
                     y="-4"
@@ -1505,12 +1603,22 @@ export function MindMap({
                     stroke={
                       isSearchMatch
                         ? "#22c55e"
-                        : isSelected && !isConnectSource
-                          ? "var(--ring)"
-                          : colorSet.bg
+                        : isConnectDropTarget
+                          ? "#8b5cf6"
+                          : isSelected && !isConnectSource
+                            ? "var(--ring)"
+                            : colorSet.bg
                     }
-                    strokeWidth={isSearchMatch || (isSelected && !isConnectSource) ? 2 : 1}
-                    strokeOpacity={isSearchMatch || (isSelected && !isConnectSource) ? 0.9 : 0.4}
+                    strokeWidth={
+                      isSearchMatch || isConnectDropTarget || (isSelected && !isConnectSource)
+                        ? 2
+                        : 1
+                    }
+                    strokeOpacity={
+                      isSearchMatch || isConnectDropTarget || (isSelected && !isConnectSource)
+                        ? 0.9
+                        : 0.4
+                    }
                     filter={`url(#glow-${Math.max(0, colorIdx)})`}
                   />
                 )}
@@ -1664,8 +1772,8 @@ export function MindMap({
 
                     <g
                       transform={`translate(${bodyW + 10}, ${bodyH / 2})`}
-                      onClick={(e) => handleConnectClick(e, node.id)}
-                      className="cursor-pointer"
+                      onMouseDown={(e) => handleConnectHandleMouseDown(e, node.id)}
+                      className="cursor-crosshair"
                     >
                       <title>
                         {node.parentId ? t("mindMap.linkHintActive") : t("mindMap.linkHint")}
@@ -1840,7 +1948,7 @@ export function MindMap({
             return next
           })
         }}
-        onStartConnect={(id) => setConnecting({ fromId: id })}
+        onStartConnect={(id) => setSelectedNodeIds(new Set([id]))}
         onUnlinkParent={(id) => onUpdateNode(id, { parentId: null })}
         onAddNodeAt={handleAddNodeAt}
         onSelectAll={handleSelectAllNodes}

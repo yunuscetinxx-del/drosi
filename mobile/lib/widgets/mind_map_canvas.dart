@@ -29,6 +29,7 @@ class MindMapCanvas extends StatefulWidget {
     required this.onMenuNode,
     required this.onTapEmpty,
     required this.onLongPressEmpty,
+    required this.onConnect,
   });
 
   final List<MindMapNode> nodes;
@@ -41,15 +42,29 @@ class MindMapCanvas extends StatefulWidget {
   final ValueChanged<MindMapNode> onMenuNode;
   final VoidCallback onTapEmpty;
   final ValueChanged<Offset> onLongPressEmpty;
+  final void Function(String fromId, String toId) onConnect;
 
   @override
   State<MindMapCanvas> createState() => MindMapCanvasState();
 }
 
+class _ConnectDrag {
+  const _ConnectDrag({
+    required this.fromId,
+    required this.end,
+  });
+
+  final String fromId;
+  final Offset end;
+}
+
 class MindMapCanvasState extends State<MindMapCanvas> {
   final _controller = TransformationController();
+  final _canvasKey = GlobalKey();
   static const double canvasSize = 4000;
   Size _viewportSize = Size.zero;
+  _ConnectDrag? _connectDrag;
+  String? _connectDropTargetId;
 
   @override
   void dispose() {
@@ -58,6 +73,67 @@ class MindMapCanvasState extends State<MindMapCanvas> {
   }
 
   double get _scale => _controller.value.getMaxScaleOnAxis();
+
+  double _nodeHeight(MindMapNode node) {
+    var h = mindMapNodeHeight(node);
+    if (node.note != null && node.note!.isNotEmpty) h += 56;
+    return h;
+  }
+
+  Rect _nodeRect(MindMapNode node) =>
+      Rect.fromLTWH(node.x, node.y, mindMapNodeWidth(node), _nodeHeight(node));
+
+  Offset _connectHandleCenter(MindMapNode node) {
+    final w = mindMapNodeWidth(node);
+    final h = mindMapNodeHeight(node);
+    return Offset(node.x + w + 10, node.y + h / 2);
+  }
+
+  Offset? _globalToCanvas(Offset global) {
+    final box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    return box.globalToLocal(global);
+  }
+
+  MindMapNode? _nodeAt(Offset canvasPos) {
+    for (final node in widget.nodes.reversed) {
+      if (_nodeRect(node).contains(canvasPos)) return node;
+    }
+    return null;
+  }
+
+  void _updateConnectDrag(Offset canvasPos) {
+    final fromId = _connectDrag?.fromId;
+    if (fromId == null) return;
+    final target = _nodeAt(canvasPos);
+    setState(() {
+      _connectDrag = _ConnectDrag(fromId: fromId, end: canvasPos);
+      _connectDropTargetId =
+          target != null && target.id != fromId ? target.id : null;
+    });
+  }
+
+  MindMapNode? _connectSourceNode() {
+    final fromId = _connectDrag?.fromId;
+    if (fromId == null) return null;
+    for (final node in widget.nodes) {
+      if (node.id == fromId) return node;
+    }
+    return null;
+  }
+
+  void _finishConnectDrag(Offset canvasPos) {
+    final drag = _connectDrag;
+    if (drag == null) return;
+    final target = _nodeAt(canvasPos);
+    if (target != null && target.id != drag.fromId) {
+      widget.onConnect(drag.fromId, target.id);
+    }
+    setState(() {
+      _connectDrag = null;
+      _connectDropTargetId = null;
+    });
+  }
 
   /// تمركز العرض على عقدة واحدة أو على كل العقد.
   void focusOn({MindMapNode? node}) {
@@ -119,6 +195,7 @@ class MindMapCanvasState extends State<MindMapCanvas> {
         child: ColoredBox(
           color: bg,
           child: SizedBox(
+            key: _canvasKey,
             width: canvasSize,
             height: canvasSize,
             child: Stack(
@@ -130,10 +207,15 @@ class MindMapCanvasState extends State<MindMapCanvas> {
                 ),
                 Positioned.fill(
                   child: CustomPaint(
-                    painter: _ConnectionPainter(widget.nodes),
+                    painter: _ConnectionPainter(
+                      widget.nodes,
+                      connectDrag: _connectDrag,
+                      connectFrom: _connectSourceNode(),
+                    ),
                   ),
                 ),
                 ...widget.nodes.map(_buildNode),
+                ...widget.nodes.map(_buildConnectHandle),
               ],
             ),
           ),
@@ -146,6 +228,8 @@ class MindMapCanvasState extends State<MindMapCanvas> {
 
   Widget _buildNode(MindMapNode node) {
     final isSelected = node.id == widget.selectedId;
+    final isDropTarget = node.id == _connectDropTargetId;
+    final isConnectSource = node.id == _connectDrag?.fromId;
     final w = mindMapNodeWidth(node);
     final isMain = node.resolvedRole == MindMapNodeRole.main;
     final color = Color(colorFromHex(node.color));
@@ -158,11 +242,18 @@ class MindMapCanvasState extends State<MindMapCanvas> {
         onTap: () => widget.onTapNode(node),
         onDoubleTap: () => widget.onDoubleTapNode(node),
         onLongPress: () => widget.onMenuNode(node),
-        onPanStart: (_) => widget.onSelect(node.id),
+        onPanStart: (_) {
+          if (_connectDrag != null) return;
+          widget.onSelect(node.id);
+        },
         onPanUpdate: (d) {
+          if (_connectDrag != null) return;
           widget.onMove(node.id, d.delta / _scale);
         },
-        onPanEnd: (_) => widget.onMoveEnd(),
+        onPanEnd: (_) {
+          if (_connectDrag != null) return;
+          widget.onMoveEnd();
+        },
         child: SizedBox(
           width: w,
           child: Column(
@@ -178,8 +269,12 @@ class MindMapCanvasState extends State<MindMapCanvas> {
                   borderRadius:
                       BorderRadius.circular(isMain ? kMindMapMainH / 2 : 8),
                   border: Border.all(
-                    color: isSelected ? Colors.white : Colors.black26,
-                    width: isSelected ? 3 : 1,
+                    color: isDropTarget
+                        ? const Color(0xFF8B5CF6)
+                        : isSelected || isConnectSource
+                            ? Colors.white
+                            : Colors.black26,
+                    width: isDropTarget || isSelected || isConnectSource ? 3 : 1,
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -224,6 +319,69 @@ class MindMapCanvasState extends State<MindMapCanvas> {
       ),
     );
   }
+
+  Widget _buildConnectHandle(MindMapNode node) {
+    final w = mindMapNodeWidth(node);
+    final h = mindMapNodeHeight(node);
+    final isSelected = node.id == widget.selectedId;
+    final isSource = node.id == _connectDrag?.fromId;
+
+    return Positioned(
+      left: node.x + w + 10 - 14,
+      top: node.y + h / 2 - 14,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: (details) {
+          final anchor = _connectHandleCenter(node);
+          setState(() {
+            _connectDrag = _ConnectDrag(fromId: node.id, end: anchor);
+            _connectDropTargetId = null;
+          });
+          widget.onSelect(node.id);
+        },
+        onPanUpdate: (details) {
+          final local = _globalToCanvas(details.globalPosition);
+          if (local != null) _updateConnectDrag(local);
+        },
+        onPanEnd: (details) {
+          final local = _globalToCanvas(details.globalPosition);
+          if (local != null) _finishConnectDrag(local);
+        },
+        onPanCancel: () {
+          setState(() {
+            _connectDrag = null;
+            _connectDropTargetId = null;
+          });
+        },
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Center(
+            child: Container(
+              width: isSelected || isSource ? 22 : 18,
+              height: isSelected || isSource ? 22 : 18,
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.45),
+                    blurRadius: isSelected || isSource ? 8 : 4,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.swap_horiz,
+                size: 12,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// شبكة نقاط مثل الموقع (نقاط صغيرة كل 24px + أكبر كل 96px).
@@ -260,8 +418,28 @@ class _DotGridPainter extends CustomPainter {
 }
 
 class _ConnectionPainter extends CustomPainter {
-  _ConnectionPainter(this.nodes);
+  _ConnectionPainter(
+    this.nodes, {
+    this.connectDrag,
+    this.connectFrom,
+  });
+
   final List<MindMapNode> nodes;
+  final _ConnectDrag? connectDrag;
+  final MindMapNode? connectFrom;
+
+  void _drawBezier(Canvas canvas, Paint paint, Offset start, Offset end) {
+    final path = Path()..moveTo(start.dx, start.dy);
+    final midX = (start.dx + end.dx) / 2;
+    path.cubicTo(midX, start.dy, midX, end.dy, end.dx, end.dy);
+    canvas.drawPath(path, paint);
+  }
+
+  Offset _anchor(MindMapNode node) {
+    final w = mindMapNodeWidth(node);
+    final h = mindMapNodeHeight(node);
+    return Offset(node.x + w + 10, node.y + h / 2);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -269,6 +447,14 @@ class _ConnectionPainter extends CustomPainter {
     final paint = Paint()
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke;
+
+    if (connectDrag != null && connectFrom != null) {
+      final dragPaint = Paint()
+        ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.9)
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke;
+      _drawBezier(canvas, dragPaint, _anchor(connectFrom!), connectDrag!.end);
+    }
 
     for (final node in nodes) {
       final parentId = node.parentId;
@@ -286,14 +472,13 @@ class _ConnectionPainter extends CustomPainter {
       );
 
       paint.color = Color(colorFromHex(node.color)).withValues(alpha: 0.6);
-
-      final path = Path()..moveTo(start.dx, start.dy);
-      final midX = (start.dx + end.dx) / 2;
-      path.cubicTo(midX, start.dy, midX, end.dy, end.dx, end.dy);
-      canvas.drawPath(path, paint);
+      _drawBezier(canvas, paint, start, end);
     }
   }
 
   @override
-  bool shouldRepaint(_ConnectionPainter oldDelegate) => true;
+  bool shouldRepaint(_ConnectionPainter oldDelegate) =>
+      oldDelegate.connectDrag != connectDrag ||
+      oldDelegate.connectFrom != connectFrom ||
+      oldDelegate.nodes != nodes;
 }
