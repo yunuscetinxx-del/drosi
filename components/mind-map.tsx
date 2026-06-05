@@ -24,7 +24,8 @@ import {
   getMindMapEdgeEndpoints,
   getMindMapNodeAnchor,
   getMindMapNodeLayout,
-  mindMapNodeArrowPoints,
+  mindMapNodeInboundArrow,
+  mindMapNodeOutboundArrow,
 } from "@/lib/mind-map-node"
 import { MindMapNodeMenu, type MindMapContextMenuState } from "@/components/mind-map-node-menu"
 import { Button } from "@/components/ui/button"
@@ -1089,12 +1090,38 @@ export function MindMap({
     [readonly, svgToWorld]
   )
 
-  // Bezier edge path (نقاط الربط = مركز جسم العقدة)
+  // Bezier edge path
   const edgePath = (fromX: number, fromY: number, toX: number, toY: number) => {
     const dx = toX - fromX
+    const dy = toY - fromY
+    if (Math.abs(dx) < 4) {
+      const my = fromY + dy * 0.5
+      return `M ${fromX} ${fromY} C ${fromX} ${my}, ${toX} ${my}, ${toX} ${toY}`
+    }
     const mx = fromX + dx * 0.5
     return `M ${fromX} ${fromY} C ${mx} ${fromY}, ${mx} ${toY}, ${toX} ${toY}`
   }
+
+  const edgeArrowPoints = (
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    size = 13
+  ) => {
+    const angle = Math.atan2(toY - fromY, toX - fromX)
+    const bx = toX - size * Math.cos(angle)
+    const by = toY - size * Math.sin(angle)
+    const spread = size * 0.52
+    const px = -Math.sin(angle)
+    const py = Math.cos(angle)
+    return `${toX},${toY} ${bx + spread * px},${by + spread * py} ${bx - spread * px},${by - spread * py}`
+  }
+
+  const parentIdsWithChildren = useMemo(
+    () => new Set(nodes.map((n) => n.parentId).filter((id): id is string => Boolean(id))),
+    [nodes]
+  )
 
   const handleCopySelection = useCallback(
     (explicitNodeId?: string) => {
@@ -1445,20 +1472,6 @@ export function MindMap({
         >
           <defs>
             {MIND_MAP_NODE_COLORS.map((c, i) => (
-              <marker
-                key={`arrow-${i}`}
-                id={`arrowhead-${i}`}
-                markerWidth="12"
-                markerHeight="9"
-                refX="10"
-                refY="4.5"
-                orient="auto"
-                markerUnits="strokeWidth"
-              >
-                <polygon points="0 0, 12 4.5, 0 9" fill={c.bg} fillOpacity="0.95" />
-              </marker>
-            ))}
-            {MIND_MAP_NODE_COLORS.map((c, i) => (
               <filter key={i} id={`glow-${i}`}>
                 <feGaussianBlur stdDeviation="4" result="coloredBlur" />
                 <feMerge>
@@ -1496,10 +1509,6 @@ export function MindMap({
               const parent = nodes.find((p) => p.id === node.parentId)
               if (!parent) return null
               const colorSet = getMindMapColorSet(node.color)
-              const colorIdx = Math.max(
-                0,
-                MIND_MAP_NODE_COLORS.findIndex((c) => c.bg === node.color)
-              )
               const { fromX, fromY, toX, toY } = getMindMapEdgeEndpoints(parent, node)
               const pathD = edgePath(fromX, fromY, toX, toY)
               return (
@@ -1508,9 +1517,14 @@ export function MindMap({
                     d={pathD}
                     fill="none"
                     stroke={colorSet.bg}
-                    strokeWidth="2.5"
-                    strokeOpacity="0.72"
-                    markerEnd={`url(#arrowhead-${colorIdx})`}
+                    strokeWidth="3"
+                    strokeOpacity="0.85"
+                  />
+                  <polygon
+                    points={edgeArrowPoints(fromX, fromY, toX, toY)}
+                    fill={colorSet.bg}
+                    stroke="var(--background)"
+                    strokeWidth="1.2"
                   />
                   <circle r="3" fill={colorSet.bg} opacity="0.7">
                     <animateMotion dur="2.5s" repeatCount="indefinite" path={pathD} />
@@ -1584,6 +1598,9 @@ export function MindMap({
               node.linkedMapId && allMaps.length > 0
                 ? allMaps.find((m) => m.id === node.linkedMapId)
                 : null
+            const hasChildren = parentIdsWithChildren.has(node.id)
+            const showOutbound = hasChildren || !node.parentId
+            const showInbound = Boolean(node.parentId)
 
             return (
               <g
@@ -1692,20 +1709,24 @@ export function MindMap({
                   strokeOpacity={isConnectSource ? 1 : isSelected ? 1 : isHovered ? 0.9 : 0.65}
                 />
 
-                <polygon
-                  points={mindMapNodeArrowPoints(bodyW, bodyH, role)}
-                  fill={colorSet.bg}
-                  opacity={role === "main" ? 0.92 : 0.85}
-                  className="pointer-events-none"
-                />
-                <polygon
-                  points={mindMapNodeArrowPoints(bodyW, bodyH, role)}
-                  fill="none"
-                  stroke={colorSet.border}
-                  strokeWidth={1}
-                  strokeOpacity={0.55}
-                  className="pointer-events-none"
-                />
+                {showInbound && (
+                  <polygon
+                    points={mindMapNodeInboundArrow(bodyH, role)}
+                    fill={colorSet.bg}
+                    stroke={colorSet.border}
+                    strokeWidth={1.25}
+                    className="pointer-events-none"
+                  />
+                )}
+                {showOutbound && (
+                  <polygon
+                    points={mindMapNodeOutboundArrow(bodyW, bodyH, role)}
+                    fill={colorSet.bg}
+                    stroke={colorSet.border}
+                    strokeWidth={1.25}
+                    className="pointer-events-none"
+                  />
+                )}
 
                 <rect x="0" y="0" width="4" height={bodyH} rx={bodyR} fill={colorSet.bg} />
                 <rect x="2" y="0" width="2" height={bodyH} fill={colorSet.bg} />

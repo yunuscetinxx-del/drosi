@@ -81,25 +81,70 @@ export function getMindMapNodeAnchor(node: MindMapNode) {
   }
 }
 
-/** نقاط بداية/نهاية الخط: من يمين الأم إلى يسار الابن (اتجاه السهم) */
+/** نقاط الربط حسب موقع الابن (يمين/يسار/أعلى/أسفل) */
 export function getMindMapEdgeEndpoints(parent: MindMapNode, child: MindMapNode) {
   const pLayout = getMindMapNodeLayout(parent)
   const cLayout = getMindMapNodeLayout(child)
+  const pCx = parent.x + pLayout.bodyW / 2
+  const pCy = parent.y + pLayout.bodyH / 2
+  const cCx = child.x + cLayout.bodyW / 2
+  const cCy = child.y + cLayout.bodyH / 2
+  const dx = cCx - pCx
+  const dy = cCy - pCy
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    if (dx >= 0) {
+      return {
+        fromX: parent.x + pLayout.bodyW,
+        fromY: pCy,
+        toX: child.x,
+        toY: cCy,
+        toSide: "left" as const,
+      }
+    }
+    return {
+      fromX: parent.x,
+      fromY: pCy,
+      toX: child.x + cLayout.bodyW,
+      toY: cCy,
+      toSide: "right" as const,
+    }
+  }
+
+  if (dy >= 0) {
+    return {
+      fromX: pCx,
+      fromY: parent.y + pLayout.bodyH,
+      toX: cCx,
+      toY: child.y,
+      toSide: "top" as const,
+    }
+  }
   return {
-    fromX: parent.x + pLayout.bodyW,
-    fromY: parent.y + pLayout.bodyH / 2,
-    toX: child.x,
-    toY: child.y + cLayout.bodyH / 2,
+    fromX: pCx,
+    fromY: parent.y,
+    toX: cCx,
+    toY: child.y + cLayout.bodyH,
+    toSide: "bottom" as const,
   }
 }
 
-/** مثلث اتجاه على حافة العقدة (يشير للأمام — يمين) */
-export function mindMapNodeArrowPoints(bodyW: number, bodyH: number, role: MindMapNodeRole): string {
+/** سهم صادر على يمين الحاوية */
+export function mindMapNodeOutboundArrow(bodyW: number, bodyH: number, role: MindMapNodeRole): string {
   const cy = bodyH / 2
-  if (role === "main") {
-    return `${bodyW},${cy} ${bodyW - 12},${cy - 7} ${bodyW - 12},${cy + 7}`
-  }
-  return `${bodyW},${cy} ${bodyW - 9},${cy - 5} ${bodyW - 9},${cy + 5}`
+  const tip = bodyW + 8
+  const base = bodyW - 2
+  const half = role === "main" ? 10 : 8
+  return `${tip},${cy} ${base},${cy - half} ${base},${cy + half}`
+}
+
+/** سهم وارد على يسار الحاوية */
+export function mindMapNodeInboundArrow(bodyH: number, role: MindMapNodeRole): string {
+  const cy = bodyH / 2
+  const tip = -8
+  const base = 2
+  const half = role === "main" ? 10 : 8
+  return `${tip},${cy} ${base},${cy - half} ${base},${cy + half}`
 }
 
 export function defaultRoleForNewNode(parentId: string | null): MindMapNodeRole {
