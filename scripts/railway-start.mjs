@@ -19,26 +19,73 @@ function maskDatabaseUrl(url) {
   }
 }
 
-function tryMigrate() {
+const BASELINE_MIGRATIONS = [
+  "20260221140000_init",
+  "20260222103000_add_user_is_admin",
+  "20260523120000_add_lesson_share",
+  "20260530120000_add_lesson_share_scope",
+  "20260605120000_add_gemini_api_key",
+]
+
+function runPrisma(args) {
   const prismaCli = resolve(root, "node_modules/prisma/build/index.js")
+  const cmd = existsSync(prismaCli)
+    ? `node "${prismaCli}" ${args}`
+    : `npx prisma ${args}`
+  return execSync(cmd, {
+    env: process.env,
+    cwd: root,
+    shell: true,
+    stdio: ["inherit", "pipe", "pipe"],
+  })
+}
+
+function baselineMigrations() {
+  console.log(
+    "[start] P3005 detected — baselining existing migrations as already applied…"
+  )
+  const prismaCli = resolve(root, "node_modules/prisma/build/index.js")
+  for (const migration of BASELINE_MIGRATIONS) {
+    const args = `migrate resolve --applied "${migration}"`
+    const cmd = existsSync(prismaCli)
+      ? `node "${prismaCli}" ${args}`
+      : `npx prisma ${args}`
+    console.log(`[start] Marking migration as applied: ${migration}`)
+    execSync(cmd, {
+      stdio: "inherit",
+      env: process.env,
+      cwd: root,
+      shell: true,
+    })
+  }
+  console.log("[start] Baselining complete. Retrying migrate deploy…")
+}
+
+function tryMigrate() {
   try {
-    if (existsSync(prismaCli)) {
-      execSync(`node "${prismaCli}" migrate deploy`, {
-        stdio: "inherit",
-        env: process.env,
-        cwd: root,
-        shell: true,
-      })
-    } else {
-      execSync("npx prisma migrate deploy", {
-        stdio: "inherit",
-        env: process.env,
-        cwd: root,
-        shell: true,
-      })
-    }
+    const output = runPrisma("migrate deploy")
+    if (output) process.stdout.write(output)
     return true
   } catch (err) {
+    const stderr = err.stderr ? err.stderr.toString() : ""
+    const stdout = err.stdout ? err.stdout.toString() : ""
+    const combined = stderr + stdout
+    if (stdout) process.stdout.write(stdout)
+    if (stderr) process.stderr.write(stderr)
+
+    if (combined.includes("P3005")) {
+      try {
+        baselineMigrations()
+        const retryOutput = runPrisma("migrate deploy")
+        if (retryOutput) process.stdout.write(retryOutput)
+        return true
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+        console.error("[start] prisma migrate deploy failed after baselining:", retryMsg.split("\n")[0])
+        return false
+      }
+    }
+
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[start] prisma migrate deploy failed:", msg.split("\n")[0])
     return false
