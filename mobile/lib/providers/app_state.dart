@@ -63,6 +63,13 @@ class AppState extends ChangeNotifier {
     baseUrl = ApiConfig.baseUrl;
     await ApiClient.instance.init();
 
+    // جلب رابط السيرفر من الموقع (يُحدَّث شهرياً دون إعادة بناء APK).
+    final syncedUrl = await ApiConfig.syncFromRemote();
+    if (syncedUrl != null) {
+      baseUrl = ApiConfig.baseUrl;
+      await ApiClient.instance.rebuildBaseUrl();
+    }
+
     // راقب الاتصال وزامن تلقائياً عند عودته.
     await _refreshConnectivity();
     _connSub = _connectivity.onConnectivityChanged.listen(_onConnectivityChanged);
@@ -185,7 +192,28 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setBaseUrl(String url) async {
-    await ApiConfig.setBaseUrl(url);
+    await ApiConfig.setBaseUrl(url, userOverride: true);
+    baseUrl = ApiConfig.baseUrl;
+    await ApiClient.instance.rebuildBaseUrl();
+    notifyListeners();
+  }
+
+  Future<String?> syncServerUrlFromRemote() async {
+    final synced = await ApiConfig.syncFromRemote();
+    if (synced != null) {
+      baseUrl = ApiConfig.baseUrl;
+      await ApiClient.instance.rebuildBaseUrl();
+      notifyListeners();
+    }
+    return synced;
+  }
+
+  Future<void> resetServerUrlToRemote() async {
+    await ApiConfig.clearUserOverride();
+    final synced = await ApiConfig.syncFromRemote();
+    if (synced == null) {
+      await ApiConfig.setBaseUrl(ApiConfig.defaultBaseUrl, userOverride: false);
+    }
     baseUrl = ApiConfig.baseUrl;
     await ApiClient.instance.rebuildBaseUrl();
     notifyListeners();

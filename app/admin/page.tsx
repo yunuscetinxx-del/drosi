@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Download, Search, Shield, ArrowRight } from "lucide-react"
+import { SiteConfigPanel } from "@/components/site-config-panel"
 
 type ProfileRow = {
   userId: string
@@ -101,7 +102,9 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-4 p-4 sm:grid-cols-2 sm:p-8">
+      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-8">
+        <SiteConfigPanel admin />
+        <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">المستخدمون</CardTitle>
@@ -178,6 +181,7 @@ export default function AdminPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </main>
     </div>
   )

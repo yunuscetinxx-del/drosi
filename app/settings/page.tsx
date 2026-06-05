@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { AppNav } from "@/components/app-nav"
 import { AiSettingsPanel } from "@/components/ai-settings-panel"
+import { SiteConfigPanel } from "@/components/site-config-panel"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -88,6 +89,7 @@ export default function SettingsPage() {
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto w-full max-w-2xl space-y-6">
+          <SiteConfigPanel />
           <AiSettingsPanel />
         </div>
       </main>

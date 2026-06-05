@@ -3,6 +3,7 @@
   "buildNumber": 6,
   "releasedAt": "2026-06-05",
   "apkUrl": "",
+  "apiBaseUrl": "https://sdda.up.railway.app",
   "changelog": "• Sign up with your name\n• AI workspace with source selection (matches web)\n• Gemini API key in settings (BYOK)\n• Mind maps with folders & drag links\n• Study calendar & lesson sharing\n• Markdown note import & offline sync",
   "mandatory": false,
   "minBuildNumber": 0

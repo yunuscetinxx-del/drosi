@@ -22,6 +22,17 @@ export const messages: Messages = {
     title: "Einstellungen",
     subtitle: "Konto & KI",
   },
+  siteConfig: {
+    title: "Server-URL",
+    subtitle: "Mobile Apps lesen diese URL beim Start. Hier ändern, wenn die Domain wechselt.",
+    apiBaseUrl: "API-Basis-URL (HTTPS)",
+    hint: "Beispiel: https://your-app.up.railway.app — ohne Schrägstrich am Ende",
+    forceHint: "Alle Mobile-Apps zu dieser URL zwingen (überschreibt manuelle App-Einstellungen)",
+    save: "Server-URL speichern",
+    saved: "Gespeichert. Mobile Apps übernehmen die URL beim nächsten Start.",
+    updated: "Zuletzt aktualisiert",
+    loadError: "Server-Konfiguration konnte nicht geladen werden",
+  },
   aiSettings: {
     title: "Gemini verbinden",
     subtitle: "Nutzen Sie Ihren kostenlosen Google-API-Schlüssel",

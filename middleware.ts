@@ -21,10 +21,11 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/share/")) return NextResponse.next()
   if (pathname.startsWith("/api/share/")) return NextResponse.next()
   if (pathname.startsWith("/api/auth")) return NextResponse.next()
+  if (pathname === "/api/public-config") return NextResponse.next()
   if (pathname.startsWith("/_next")) return NextResponse.next()
   if (pathname === "/favicon.ico") return NextResponse.next()
 
-  if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$/i.test(pathname)) {
+  if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|json)$/i.test(pathname)) {
     return NextResponse.next()
   }
 

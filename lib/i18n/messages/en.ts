@@ -22,6 +22,17 @@ export const messages: Messages = {
     title: "Settings",
     subtitle: "Account & AI",
   },
+  siteConfig: {
+    title: "Server URL",
+    subtitle: "Mobile apps read this link on startup. Change it here when you move to a new domain.",
+    apiBaseUrl: "API base URL (HTTPS)",
+    hint: "Example: https://your-app.up.railway.app — no trailing slash",
+    forceHint: "Force all mobile apps to use this URL (overrides manual app settings)",
+    save: "Save server URL",
+    saved: "Server URL saved. Mobile apps will pick it up on next launch.",
+    updated: "Last updated",
+    loadError: "Could not load server config",
+  },
   aiSettings: {
     title: "Connect Gemini",
     subtitle: "Use your free Google API key — you pay usage, not the app",

@@ -47,3 +47,11 @@ model LessonShare {
   @@index([ownerId, lessonId])
   @@index([token])
 }
+
+/// إعدادات عامة للتطبيق — رابط السيرفر للموبايل (يُحدَّث من لوحة الأدمن)
+model AppPublicConfig {
+  singleton       String   @id @default("global")
+  apiBaseUrl      String
+  forceApiBaseUrl Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}

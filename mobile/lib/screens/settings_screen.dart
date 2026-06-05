@@ -35,6 +35,9 @@ class SettingsScreen extends StatelessWidget {
           _SectionTitle('المظهر'),
           _ThemeCard(state: state),
           const SizedBox(height: 16),
+          _SectionTitle('السيرفر'),
+          _ServerCard(state: state),
+          const SizedBox(height: 16),
           _SectionTitle('المزامنة'),
           _SyncCard(state: state),
           const SizedBox(height: 16),
@@ -195,6 +198,133 @@ class _ThemeCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary)
           : const Icon(Icons.circle_outlined, color: Colors.grey),
       onTap: () => state.setThemeMode(mode),
+    );
+  }
+}
+
+class _ServerCard extends StatefulWidget {
+  const _ServerCard({required this.state});
+  final AppState state;
+
+  @override
+  State<_ServerCard> createState() => _ServerCardState();
+}
+
+class _ServerCardState extends State<_ServerCard> {
+  late final TextEditingController _url;
+  bool _syncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _url = TextEditingController(text: widget.state.baseUrl);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ServerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.baseUrl != widget.state.baseUrl) {
+      _url.text = widget.state.baseUrl;
+    }
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final value = _url.text.trim();
+    if (value.isEmpty) return;
+    await widget.state.setBaseUrl(value);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم حفظ عنوان السيرفر')),
+      );
+    }
+  }
+
+  Future<void> _syncRemote() async {
+    setState(() => _syncing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final synced = await widget.state.syncServerUrlFromRemote();
+      if (!mounted) return;
+      _url.text = widget.state.baseUrl;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            synced != null
+                ? 'تم تحديث الرابط من الموقع'
+                : 'لا يوجد رابط جديد (أو لديك إعداد يدوي)',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'عنوان السيرفر',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'غيّره هنا أو من لوحة الأدمن على الموقع — يُزامن تلقائياً عند فتح التطبيق.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.6),
+                  ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _url,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(
+                labelText: 'Server URL',
+                hintText: 'https://example.up.railway.app',
+                prefixIcon: Icon(Icons.cloud_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _save,
+                    child: const Text('حفظ'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _syncing ? null : () => _syncRemote(),
+                    child: _syncing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('من الموقع'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

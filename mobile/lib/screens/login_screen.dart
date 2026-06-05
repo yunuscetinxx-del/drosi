@@ -19,12 +19,25 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _registerMode = false;
   bool _submitting = false;
   bool _obscure = true;
+  bool _showServer = false;
+  bool _serverInitialized = false;
+  final _serverUrl = TextEditingController();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_serverInitialized) {
+      _serverUrl.text = context.read<AppState>().baseUrl;
+      _serverInitialized = true;
+    }
+  }
 
   @override
   void dispose() {
     _name.dispose();
     _email.dispose();
     _password.dispose();
+    _serverUrl.dispose();
     super.dispose();
   }
 
@@ -155,7 +168,50 @@ class _LoginScreenState extends State<LoginScreen> {
                                   _registerMode ? 'Create account' : 'Sign in',
                                 ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _submitting
+                              ? null
+                              : () => setState(() => _showServer = !_showServer),
+                          icon: Icon(
+                            _showServer
+                                ? Icons.expand_less
+                                : Icons.settings_outlined,
+                            size: 18,
+                          ),
+                          label: Text(_showServer ? 'Hide server' : 'Server URL'),
+                        ),
+                        if (_showServer) ...[
+                          TextFormField(
+                            controller: _serverUrl,
+                            textDirection: TextDirection.ltr,
+                            decoration: const InputDecoration(
+                              labelText: 'Server URL',
+                              hintText: 'https://example.up.railway.app',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: _submitting
+                                ? null
+                                : () async {
+                                    await context
+                                        .read<AppState>()
+                                        .setBaseUrl(_serverUrl.text.trim());
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Server URL saved'),
+                                        ),
+                                      );
+                                    }
+                                  },
+                            child: const Text('Save server URL'),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
