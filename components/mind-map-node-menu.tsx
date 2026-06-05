@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils"
 import {
   Check,
+  ClipboardPaste,
   Copy,
   ExternalLink,
   GitBranch,
@@ -112,6 +113,9 @@ interface MindMapNodeMenuProps {
   onUnlinkParent?: (nodeId: string) => void
   onAddNodeAt?: (worldX: number, worldY: number, role: "main" | "branch") => void
   onSelectAll?: () => void
+  onCopySelection?: () => void
+  onPaste?: () => void
+  canPaste?: boolean
 }
 
 function MenuSectionLabel({ children }: { children: React.ReactNode }) {
@@ -178,6 +182,9 @@ export function MindMapNodeMenu({
   onUnlinkParent,
   onAddNodeAt,
   onSelectAll,
+  onCopySelection,
+  onPaste,
+  canPaste = false,
 }: MindMapNodeMenuProps) {
   const { t } = useTranslations()
   const [noteDialogOpen, setNoteDialogOpen] = useState(false)
@@ -299,10 +306,45 @@ export function MindMapNodeMenu({
                 }}
               />
             )}
+            {canPaste && onPaste && (
+              <MenuItem
+                icon={<ClipboardPaste className="h-4 w-4 shrink-0 text-emerald-500" />}
+                label={t("mindMap.pasteNodes")}
+                shortcut="Ctrl+V"
+                onClick={() => {
+                  onPaste()
+                  onClose()
+                }}
+              />
+            )}
           </>
         ) : (
           node && (
             <>
+              <MenuSectionLabel>{t("mindMap.menuSectionEdit")}</MenuSectionLabel>
+              {onCopySelection && (
+                <MenuItem
+                  icon={<Copy className="h-4 w-4 shrink-0 text-sky-500" />}
+                  label={t("mindMap.copyNodes")}
+                  shortcut="Ctrl+C"
+                  onClick={() => {
+                    onCopySelection()
+                    onClose()
+                  }}
+                />
+              )}
+              {canPaste && onPaste && (
+                <MenuItem
+                  icon={<ClipboardPaste className="h-4 w-4 shrink-0 text-emerald-500" />}
+                  label={t("mindMap.pasteNodes")}
+                  shortcut="Ctrl+V"
+                  onClick={() => {
+                    onPaste()
+                    onClose()
+                  }}
+                />
+              )}
+              <div className="my-1 h-px bg-border" />
               <MenuSectionLabel>{t("mindMap.menuSectionAdd")}</MenuSectionLabel>
               {onAddChild && (
                 <MenuItem

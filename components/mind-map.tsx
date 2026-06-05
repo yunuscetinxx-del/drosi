@@ -9,6 +9,13 @@ import {
   type WordPage,
 } from "@/types/lesson"
 import { downloadSvgAsPng } from "@/lib/mind-map-export"
+import {
+  copyMindMapSelection,
+  getMindMapClipboardCount,
+  hasMindMapClipboard,
+  pasteMindMapClipboard,
+  serializeMindMapClipboard,
+} from "@/lib/mind-map-clipboard"
 import type { LessonTab } from "@/lib/app-navigation"
 import {
   MIND_MAP_NODE_COLORS,
@@ -51,6 +58,7 @@ interface MindMapProps {
   onDuplicateSubtree?: (nodeId: string) => void
   registerExportPng?: (fn: () => void) => void
   onAddNode: (node: Omit<MindMapNode, "id">) => void
+  onAddNodes?: (nodes: MindMapNode[]) => void
   onUpdateNode: (nodeId: string, updates: Partial<MindMapNode>) => void
   onUpdateNodes?: (updates: Array<{ nodeId: string; patch: Partial<MindMapNode> }>) => void
   onDeleteNode: (nodeId: string) => void
@@ -168,6 +176,7 @@ export function MindMap({
   onDuplicateSubtree,
   registerExportPng,
   onAddNode,
+  onAddNodes,
   onUpdateNode,
   onUpdateNodes,
   onDeleteNode,
@@ -279,7 +288,7 @@ export function MindMap({
   const [marquee, setMarquee] = useState<MarqueeState | null>(null)
   const [activeDragIds, setActiveDragIds] = useState<string[]>([])
   const [contextMenu, setContextMenu] = useState<MindMapContextMenuState>(null)
-  const clipboardRef = useRef<Omit<MindMapNode, "id"> | null>(null)
+  const [clipboardCount, setClipboardCount] = useState(getMindMapClipboardCount)
 
   const primarySelectedId =
     selectedNodeIds.size === 1 ? [...selectedNodeIds][0] ?? null : null
@@ -1085,6 +1094,41 @@ export function MindMap({
     return `M ${fromX} ${fromY} C ${mx} ${fromY}, ${mx} ${toY}, ${toX} ${toY}`
   }
 
+  const handleCopySelection = useCallback(
+    (explicitNodeId?: string) => {
+      const ids =
+        selectedNodeIds.size > 0
+          ? selectedNodeIds
+          : explicitNodeId
+            ? new Set([explicitNodeId])
+            : primarySelectedId
+              ? new Set([primarySelectedId])
+              : new Set<string>()
+      const count = copyMindMapSelection(nodes, ids)
+      if (count > 0) {
+        setClipboardCount(count)
+        void navigator.clipboard.writeText(serializeMindMapClipboard()).catch(() => {})
+      }
+      return count
+    },
+    [nodes, selectedNodeIds, primarySelectedId]
+  )
+
+  const handlePaste = useCallback(
+    (anchor?: { x: number; y: number }) => {
+      const pasted = pasteMindMapClipboard(nodes, {
+        anchorX: anchor?.x,
+        anchorY: anchor?.y,
+      })
+      if (pasted.length === 0) return 0
+      if (onAddNodes) onAddNodes(pasted)
+      else pasted.forEach((n) => onAddNode(n))
+      setSelectedNodeIds(new Set(pasted.map((n) => n.id)))
+      return pasted.length
+    },
+    [nodes, onAddNode, onAddNodes]
+  )
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (readonly) return
@@ -1101,40 +1145,12 @@ export function MindMap({
       }
 
       if (mod && e.code === "KeyC") {
-        if (!primarySelectedId) return
-        const n = nodes.find((x) => x.id === primarySelectedId)
-        if (!n) return
-        clipboardRef.current = {
-          text: n.text,
-          x: n.x,
-          y: n.y,
-          parentId: n.parentId,
-          color: n.color,
-          role: n.role,
-          note: n.note,
-          linkedMapId: n.linkedMapId ?? null,
-        }
-        e.preventDefault()
-        void navigator.clipboard
-          .writeText(JSON.stringify({ type: "durusi-mindmap-node", node: clipboardRef.current }))
-          .catch(() => {})
+        if (handleCopySelection() > 0) e.preventDefault()
         return
       }
 
       if (mod && e.code === "KeyV") {
-        const clip = clipboardRef.current
-        if (!clip) return
-        onAddNode({
-          text: clip.text,
-          x: clip.x + 28,
-          y: clip.y + 28,
-          parentId: null,
-          color: clip.color,
-          role: clip.role ?? defaultRoleForNewNode(null),
-          note: clip.note ?? "",
-          linkedMapId: null,
-        })
-        e.preventDefault()
+        if (handlePaste() > 0) e.preventDefault()
         return
       }
 
@@ -1185,12 +1201,13 @@ export function MindMap({
       readonly,
       primarySelectedId,
       nodes,
-      onAddNode,
       onDeleteNode,
       applyCanvasTool,
       selectedNodeIds,
       handleAddSiblingNode,
       handleAddChildNode,
+      handleCopySelection,
+      handlePaste,
     ]
   )
 
@@ -1367,6 +1384,11 @@ export function MindMap({
           {!readonly && selectedNodeIds.size > 0 && (
             <span className="flex h-8 items-center rounded border border-primary/30 bg-primary/10 px-2 text-[11px] text-primary">
               {t("mindMap.selectedCount", { count: selectedNodeIds.size })}
+            </span>
+          )}
+          {!readonly && clipboardCount > 0 && (
+            <span className="flex h-8 items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-2 text-[11px] text-emerald-600 dark:text-emerald-400">
+              {t("mindMap.clipboardCount", { count: clipboardCount })}
             </span>
           )}
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={handleZoomIn}>
@@ -1952,6 +1974,17 @@ export function MindMap({
         onUnlinkParent={(id) => onUpdateNode(id, { parentId: null })}
         onAddNodeAt={handleAddNodeAt}
         onSelectAll={handleSelectAllNodes}
+        onCopySelection={() => {
+          handleCopySelection(contextMenu?.nodeId)
+        }}
+        onPaste={() => {
+          const anchor =
+            contextMenu?.worldX != null && contextMenu?.worldY != null
+              ? { x: contextMenu.worldX, y: contextMenu.worldY }
+              : undefined
+          handlePaste(anchor)
+        }}
+        canPaste={hasMindMapClipboard()}
       />
     </div>
   )

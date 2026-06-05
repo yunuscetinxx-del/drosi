@@ -1,4 +1,4 @@
-import '../json_utils.dart';
+import 'json_utils.dart';
 
 class LessonAnalysisEntry {
   LessonAnalysisEntry({

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/json_utils.dart';
 import '../models/mind_map.dart';
 import '../theme/app_theme.dart';
+import '../utils/mind_map_clipboard.dart';
 import '../widgets/mind_map_canvas.dart';
 
 class MindMapEditorScreen extends StatefulWidget {
@@ -297,6 +298,46 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
     _commit();
   }
 
+  void _copySelection({String? nodeId}) {
+    final ids = <String>{};
+    if (_selectedId != null) {
+      ids.add(_selectedId!);
+    } else if (nodeId != null) {
+      ids.add(nodeId);
+    }
+    if (ids.isEmpty) return;
+    MindMapClipboard.copy(_map.nodes, ids);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تم نسخ ${MindMapClipboard.count} عقدة — انتقل لخريطة أخرى والصق'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    setState(() {});
+  }
+
+  void _pasteNodes() {
+    if (!MindMapClipboard.hasContent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يوجد عُقد منسوخة')),
+      );
+      return;
+    }
+    final pasted = MindMapClipboard.paste();
+    if (pasted.isEmpty) return;
+    _map.nodes = [..._map.nodes, ...pasted];
+    _selectedId = pasted.first.id;
+    _commit();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('تم لصق ${pasted.length} عقدة'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _deleteNode(String id) {
     final toRemove = <String>{id};
     var changed = true;
@@ -346,6 +387,24 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            ListTile(
+              leading: const Icon(Icons.copy, color: Colors.lightBlue),
+              title: const Text('نسخ العقدة والفروع'),
+              subtitle: const Text('يُلصق في خريطة أخرى'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _copySelection(nodeId: node.id);
+              },
+            ),
+            if (MindMapClipboard.hasContent)
+              ListTile(
+                leading: const Icon(Icons.content_paste, color: Colors.green),
+                title: Text('لصق (${MindMapClipboard.count} عقدة)'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pasteNodes();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.center_focus_strong, color: Colors.blue),
               title: const Text('تركيز على العقدة'),
@@ -506,6 +565,15 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
                   _addNode(parentId: _selected!.id);
                 },
               ),
+            if (MindMapClipboard.hasContent)
+              ListTile(
+                leading: const Icon(Icons.content_paste, color: Colors.green),
+                title: Text('لصق (${MindMapClipboard.count} عقدة)'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pasteNodes();
+                },
+              ),
           ],
         ),
       ),
@@ -533,6 +601,17 @@ class _MindMapEditorScreenState extends State<MindMapEditorScreen> {
           style: const TextStyle(color: Colors.white),
         ),
         actions: [
+          if (MindMapClipboard.hasContent)
+            IconButton(
+              tooltip: 'لصق ${MindMapClipboard.count} عقدة',
+              icon: const Icon(Icons.content_paste),
+              onPressed: _pasteNodes,
+            ),
+          IconButton(
+            tooltip: 'نسخ المحدد',
+            icon: const Icon(Icons.copy),
+            onPressed: _selectedId != null ? () => _copySelection() : null,
+          ),
           IconButton(
             tooltip: 'تكبير',
             icon: const Icon(Icons.zoom_in),

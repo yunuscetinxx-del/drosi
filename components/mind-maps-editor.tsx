@@ -964,6 +964,13 @@ export const MindMapsEditor = forwardRef<MindMapsEditorHandle, MindMapsEditorPro
                       nodes: [...map.nodes, { ...node, id: generateId() }],
                     }))
                   }}
+                  onAddNodes={(newNodes) => {
+                    if (newNodes.length === 0) return
+                    patchActiveMap((map) => ({
+                      ...map,
+                      nodes: [...map.nodes, ...newNodes],
+                    }))
+                  }}
                   onUpdateNode={(nodeId, updates) => {
                     patchActiveMap((map) => ({
                       ...map,
