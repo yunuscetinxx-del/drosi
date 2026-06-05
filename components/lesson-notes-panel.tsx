@@ -3,11 +3,11 @@
 import { useCallback, useMemo, useState } from "react"
 import type { LessonNoteEntry } from "@/types/lesson"
 import { createLessonNote, sortLessonNotes } from "@/lib/lesson-notes"
+import { notePreviewText } from "@/lib/lesson-note-content"
+import { LessonNoteHtmlView, LessonNoteRichEditor } from "@/components/lesson-note-rich-editor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useTranslations } from "@/components/locale-provider"
 import { ClipboardPaste, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface LessonNotesPanelProps {
   notes: LessonNoteEntry[]
@@ -34,11 +35,8 @@ interface LessonNotesPanelProps {
   readOnly?: boolean
 }
 
-function previewText(content: string, max = 160): string {
-  const t = content.trim().replace(/\s+/g, " ")
-  if (!t) return ""
-  return t.length > max ? `${t.slice(0, max)}…` : t
-}
+const NOTE_DIALOG_CLASS =
+  "flex h-[min(94vh,920px)] w-[min(98vw,72rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none"
 
 function formatDate(d: Date): string {
   try {
@@ -126,24 +124,11 @@ export function LessonNotesPanel({
     }
     const note = createLessonNote(
       text ? t("lesson.notePastedTitle") : t("lesson.newNoteTitle"),
-      text
+      text ? `<p>${text.replace(/\n/g, "<br>")}</p>` : ""
     )
     onNotesChange([note, ...notes])
     openEditor(note)
   }, [notes, onNotesChange, openEditor, t])
-
-  const pasteIntoEditor = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      if (!text) return
-      setDraftContent((prev) => {
-        if (!prev) return text
-        return `${prev}${prev.endsWith("\n") ? "" : "\n"}${text}`
-      })
-    } catch {
-      /* ignore */
-    }
-  }, [])
 
   const confirmDelete = useCallback(() => {
     if (!deleteId) return
@@ -153,9 +138,6 @@ export function LessonNotesPanel({
     setDeleteId(null)
   }, [closeEditor, closeViewer, deleteId, editingId, notes, onNotesChange, viewingId])
 
-  const charCount = draftContent.length
-  const lineCount = draftContent ? draftContent.split("\n").length : 0
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -164,7 +146,7 @@ export function LessonNotesPanel({
             <StickyNote className="h-5 w-5 text-primary" />
             {t("lesson.personalNotes")}
           </h3>
-          <p className="text-xs text-muted-foreground mt-1">{t("lesson.notesMultiHint")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("lesson.notesRichHint")}</p>
         </div>
         {!readOnly && (
           <div className="flex flex-wrap gap-2">
@@ -194,7 +176,7 @@ export function LessonNotesPanel({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {notes.map((note) => (
             <Card
               key={note.id}
@@ -208,10 +190,10 @@ export function LessonNotesPanel({
                       {note.title.trim() || t("lesson.untitledNote")}
                     </p>
                     <p className="mt-2 text-sm text-muted-foreground line-clamp-3 min-h-[3.75rem]">
-                      {previewText(note.content) || t("lesson.noteEmptyPreview")}
+                      {notePreviewText(note.content) || t("lesson.noteEmptyPreview")}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground/80">
-                      {formatDate(note.updatedAt)} · {note.content.length} {t("lesson.chars")}
+                      {formatDate(note.updatedAt)}
                     </p>
                   </div>
                   {!readOnly && (
@@ -250,28 +232,20 @@ export function LessonNotesPanel({
         </div>
       )}
 
-      {/* عرض للقراءة */}
       <Dialog open={viewingId !== null} onOpenChange={(open) => !open && closeViewer()}>
-        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 p-0 sm:max-w-3xl">
-          <DialogHeader className="border-b px-4 py-3 sm:px-6">
-            <DialogTitle>
+        <DialogContent className={cn(NOTE_DIALOG_CLASS)}>
+          <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6">
+            <DialogTitle className="text-xl">
               {viewingNote?.title.trim() || t("lesson.untitledNote")}
             </DialogTitle>
-          </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 py-4 sm:px-6">
             {viewingNote && (
-              <p className="text-xs text-muted-foreground">
-                {t("lesson.noteLastEdit")}: {formatDate(viewingNote.updatedAt)} ·{" "}
-                {viewingNote.content.length} {t("lesson.chars")}
+              <p className="text-xs text-muted-foreground pt-1">
+                {t("lesson.noteLastEdit")}: {formatDate(viewingNote.updatedAt)}
               </p>
             )}
-            <ScrollArea className="max-h-[min(60vh,480px)] rounded-md border bg-muted/30 p-4">
-              <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
-                {viewingNote?.content.trim() || t("lesson.noteEmptyPreview")}
-              </pre>
-            </ScrollArea>
-          </div>
-          <DialogFooter className="border-t px-4 py-3 sm:px-6">
+          </DialogHeader>
+          {viewingNote && <LessonNoteHtmlView html={viewingNote.content} />}
+          <DialogFooter className="shrink-0 border-t px-4 py-3 sm:px-6">
             <Button type="button" variant="outline" onClick={closeViewer}>
               {t("common.close")}
             </Button>
@@ -285,44 +259,27 @@ export function LessonNotesPanel({
         </DialogContent>
       </Dialog>
 
-      {/* تحرير */}
       <Dialog open={editingId !== null} onOpenChange={(open) => !open && closeEditor()}>
-        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 p-0 sm:max-w-3xl">
-          <DialogHeader className="border-b px-4 py-3 sm:px-6">
+        <DialogContent className={cn(NOTE_DIALOG_CLASS)}>
+          <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6">
             <DialogTitle>{t("lesson.editNote")}</DialogTitle>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-3 sm:px-6">
             <Input
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
               placeholder={t("lesson.noteTitlePlaceholder")}
+              className="text-lg font-semibold"
               readOnly={readOnly}
               disabled={readOnly}
             />
-            {editingNote && (
-              <p className="text-xs text-muted-foreground">
-                {t("lesson.noteLastEdit")}: {formatDate(editingNote.updatedAt)}
-              </p>
-            )}
-            <Textarea
-              value={draftContent}
-              onChange={(e) => setDraftContent(e.target.value)}
-              placeholder={t("lesson.noteContentPlaceholder")}
-              className="min-h-[min(50vh,420px)] resize-y font-mono text-sm leading-relaxed"
+            <LessonNoteRichEditor
+              content={draftContent}
               readOnly={readOnly}
-              disabled={readOnly}
+              onChange={setDraftContent}
             />
-            <p className="text-xs text-muted-foreground">
-              {charCount} {t("lesson.chars")} · {lineCount} {t("lesson.lines")}
-            </p>
           </div>
-          <DialogFooter className="border-t px-4 py-3 sm:px-6">
-            {!readOnly && (
-              <Button type="button" variant="outline" onClick={() => void pasteIntoEditor()}>
-                <ClipboardPaste className="h-4 w-4 ml-1" />
-                {t("lesson.pasteNote")}
-              </Button>
-            )}
+          <DialogFooter className="shrink-0 border-t px-4 py-3 sm:px-6">
             <Button type="button" variant="outline" onClick={closeEditor}>
               {readOnly ? t("common.close") : t("common.cancel")}
             </Button>
