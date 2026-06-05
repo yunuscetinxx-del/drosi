@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest) {
     await validateGeminiApiKey(apiKey)
   } catch (err) {
     const msg = err instanceof Error ? err.message : "فشل التحقق من المفتاح"
-    if (isGeminiRateLimitError(msg)) {
+    if (isGeminiRateLimitError(err)) {
       verifyWarning =
         "تم حفظ المفتاح لكن التحقق تأخر بسبب حد الطلبات في AI Studio. انتظر دقيقة ثم جرّب التحليل."
     } else {

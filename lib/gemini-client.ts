@@ -1,7 +1,14 @@
-import { formatGeminiError } from "@/lib/gemini-errors"
+import { formatGeminiError, GeminiApiError } from "@/lib/gemini-errors"
 import type { ChatMessage } from "@/lib/openrouter-client"
 
-export const GEMINI_MODEL = "gemini-2.0-flash" as const
+/** gemini-2.0-flash أُوقف 2026-06-01 — نجرب الأحدث أولاً */
+export const GEMINI_MODEL_CANDIDATES = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-3.5-flash",
+] as const
+
+export type GeminiModelId = (typeof GEMINI_MODEL_CANDIDATES)[number]
 
 type GeminiPart =
   | { text: string }
@@ -85,24 +92,33 @@ async function messagesToGeminiPayload(messages: ChatMessage[]): Promise<{
   }
 }
 
-export async function callGemini(
-  messages: ChatMessage[],
+function isRetryableModelError(status: number, raw: string): boolean {
+  return (
+    status === 404 ||
+    raw.includes("NOT_FOUND") ||
+    raw.includes("not found") ||
+    raw.includes("deprecated") ||
+    raw.includes("no longer available")
+  )
+}
+
+async function callGeminiWithModel(
+  model: GeminiModelId,
+  payload: {
+    systemInstruction?: { parts: GeminiPart[] }
+    contents: GeminiContent[]
+  },
   apiKey: string,
   opts?: { maxTokens?: number; temperature?: number }
 ): Promise<string> {
-  const { systemInstruction, contents } = await messagesToGeminiPayload(messages)
-  if (contents.length === 0) {
-    throw new Error("لا رسائل لإرسالها إلى Gemini")
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`
 
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemInstruction,
-      contents,
+      systemInstruction: payload.systemInstruction,
+      contents: payload.contents,
       generationConfig: {
         temperature: opts?.temperature ?? 0.7,
         maxOutputTokens: opts?.maxTokens ?? 2000,
@@ -110,29 +126,60 @@ export async function callGemini(
     }),
   })
 
+  const raw = await response.text()
+
   if (!response.ok) {
-    const err = await response.text()
-    throw new Error(formatGeminiError(err, response.status))
+    const message = formatGeminiError(raw, response.status)
+    throw new GeminiApiError(message, response.status, raw)
   }
 
-  const data = (await response.json()) as {
+  const data = JSON.parse(raw) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
   }
-  const text =
+  return (
     data.candidates?.[0]?.content?.parts
       ?.map((p) => p.text ?? "")
       .join("")
       .trim() ?? ""
-
-  return text
+  )
 }
 
-/** تحقق سريع من صلاحية المفتاح */
+export async function callGemini(
+  messages: ChatMessage[],
+  apiKey: string,
+  opts?: { maxTokens?: number; temperature?: number }
+): Promise<string> {
+  const payload = await messagesToGeminiPayload(messages)
+  if (payload.contents.length === 0) {
+    throw new Error("لا رسائل لإرسالها إلى Gemini")
+  }
+
+  let lastError: GeminiApiError | null = null
+
+  for (const model of GEMINI_MODEL_CANDIDATES) {
+    try {
+      const text = await callGeminiWithModel(model, payload, apiKey, opts)
+      if (text) return text
+      lastError = new GeminiApiError("لم يصل رد من Gemini", undefined, "")
+    } catch (err) {
+      if (err instanceof GeminiApiError) {
+        lastError = err
+        if (isRetryableModelError(err.status ?? 0, err.raw)) continue
+        throw err
+      }
+      throw err
+    }
+  }
+
+  throw lastError ?? new GeminiApiError("فشل الاتصال بجميع نماذج Gemini", undefined, "")
+}
+
+/** تحقق سريع من صلاحية المفتاح — يجرب عدة نماذج */
 export async function validateGeminiApiKey(apiKey: string): Promise<void> {
   const text = await callGemini(
     [{ role: "user", content: "رد بكلمة: ok" }],
     apiKey,
     { maxTokens: 16, temperature: 0 }
   )
-  if (!text) throw new Error("لم يصل رد من Gemini — تحقق من المفتاح")
+  if (!text) throw new GeminiApiError("لم يصل رد من Gemini — تحقق من المفتاح")
 }

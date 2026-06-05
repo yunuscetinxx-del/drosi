@@ -35,7 +35,7 @@ export const messages = {
     keyPrivacy: "يُخزَّن مشفّراً على الخادم ولا يُعرض مرة أخرى بعد الحفظ",
     connect: "ربط",
     disconnect: "إلغاء الربط",
-    connected: "تم ربط Gemini بنجاح",
+    connected: "تم ربط Gemini بنجاح — النموذج: Gemini 2.5 Flash",
     disconnected: "تم إلغاء الربط",
     connectedHint: "متصل — المفتاح ينتهي بـ {hint}",
     sourceGemini: "Gemini (مفتاحك)",
