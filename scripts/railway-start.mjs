@@ -113,19 +113,20 @@ function tryDbSetup() {
 
 function startNext() {
   const port = process.env.PORT || "3000"
-  const hostname = process.env.HOSTNAME || "0.0.0.0"
+  // Railway sets HOSTNAME to the container id — must bind 0.0.0.0 for the proxy.
+  const bindHost = "0.0.0.0"
   const nextBin = resolve(root, "node_modules/next/dist/bin/next")
 
   const cmd = existsSync(nextBin) ? "node" : "npx"
   const args = existsSync(nextBin)
-    ? [nextBin, "start", "-H", hostname, "-p", port]
-    : ["next", "start", "-H", hostname, "-p", port]
+    ? [nextBin, "start", "-H", bindHost, "-p", port]
+    : ["next", "start", "-H", bindHost, "-p", port]
 
-  console.log(`[start] Starting Next.js on http://${hostname}:${port}`)
+  console.log(`[start] Starting Next.js on http://${bindHost}:${port}`)
 
   const child = spawn(cmd, args, {
     stdio: "inherit",
-    env: { ...process.env, HOSTNAME: hostname, PORT: port },
+    env: { ...process.env, PORT: port },
     cwd: root,
     shell: false,
   })
