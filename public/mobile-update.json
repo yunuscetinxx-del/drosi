@@ -2,7 +2,7 @@
   "version": "1.5.0",
   "buildNumber": 6,
   "releasedAt": "2026-06-05",
-  "apkUrl": "https://github.com/yunuscetinxx-del/drosi/releases/download/mobile-v1.5.0/app-release.apk",
+  "apkUrl": "https://drosi.up.railway.app/releases/drosi-v1.5.0.apk",
   "changelog": "• Sign up with your name\n• AI workspace with source selection (matches web)\n• Gemini API key in settings (BYOK)\n• Mind maps with folders & drag links\n• Study calendar & lesson sharing\n• Markdown note import & offline sync",
   "mandatory": false,
   "minBuildNumber": 0
