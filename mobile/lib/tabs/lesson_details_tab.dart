@@ -22,7 +22,6 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
   late final TextEditingController _subject;
   late final TextEditingController _description;
   late final TextEditingController _summary;
-  late final TextEditingController _notes;
   final _ai = AiService();
 
   bool _analyzing = false;
@@ -35,7 +34,6 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
     _subject = TextEditingController(text: widget.lesson.subject);
     _description = TextEditingController(text: widget.lesson.description);
     _summary = TextEditingController(text: widget.lesson.summary);
-    _notes = TextEditingController(text: widget.lesson.notes);
   }
 
   @override
@@ -44,7 +42,6 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
     _subject.dispose();
     _description.dispose();
     _summary.dispose();
-    _notes.dispose();
     super.dispose();
   }
 
@@ -55,7 +52,6 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
         subject: _subject.text,
         description: _description.text,
         summary: _summary.text,
-        notes: _notes.text,
       ),
     );
   }
@@ -168,12 +164,24 @@ class _LessonDetailsTabState extends State<LessonDetailsTab> {
                 ),
               ),
         const SizedBox(height: 20),
-        _SectionLabel('الملخص والملاحظات'),
+        _SectionLabel('الملخص'),
         _card([
           _field(_summary, 'الملخص', maxLines: 4, icon: Icons.summarize),
-          const SizedBox(height: 12),
-          _field(_notes, 'الملاحظات', maxLines: 6, icon: Icons.sticky_note_2_outlined),
         ]),
+        const SizedBox(height: 12),
+        Card(
+          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+          child: ListTile(
+            leading: const Icon(Icons.sticky_note_2_outlined, color: Color(0xFFF59E0B)),
+            title: const Text('الملاحظات'),
+            subtitle: Text(
+              widget.lesson.lessonNotes.isEmpty
+                  ? 'أضف ملاحظات متعددة ونصوصاً طويلة من تبويب «ملاحظات»'
+                  : '${widget.lesson.lessonNotes.length} ملاحظة محفوظة',
+            ),
+            trailing: const Icon(Icons.chevron_left),
+          ),
+        ),
         const SizedBox(height: 24),
         FilledButton.icon(
           onPressed: _analyzing ? null : _runAnalysis,

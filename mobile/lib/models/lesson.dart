@@ -1,5 +1,6 @@
 import 'json_utils.dart';
 import 'lesson_image.dart';
+import 'lesson_note.dart';
 import 'mind_map.dart';
 import 'word_page.dart';
 
@@ -16,6 +17,7 @@ class Lesson {
     required this.summary,
     required this.keyPoints,
     required this.notes,
+    required this.lessonNotes,
     required this.images,
     required this.wordPages,
     required this.mindMaps,
@@ -32,6 +34,7 @@ class Lesson {
   String summary;
   List<String> keyPoints;
   String notes;
+  List<LessonNote> lessonNotes;
   List<LessonImage> images;
   List<WordPage> wordPages;
   List<MindMap> mindMaps;
@@ -44,7 +47,7 @@ class Lesson {
   factory Lesson.fromJson(Map<String, dynamic> json) {
     const known = {
       'id', 'title', 'subject', 'description', 'summary', 'keyPoints',
-      'notes', 'images', 'wordPages', 'mindMaps', 'mindMapFolders',
+      'notes', 'lessonNotes', 'images', 'wordPages', 'mindMaps', 'mindMapFolders',
       'createdAt', 'updatedAt',
     };
     final extra = <String, dynamic>{};
@@ -60,6 +63,7 @@ class Lesson {
       summary: json['summary']?.toString() ?? '',
       keyPoints: asStringList(json['keyPoints']),
       notes: json['notes']?.toString() ?? '',
+      lessonNotes: _parseLessonNotes(json),
       images: (json['images'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(LessonImage.fromJson)
@@ -91,6 +95,7 @@ class Lesson {
         'summary': summary,
         'keyPoints': keyPoints,
         'notes': notes,
+        'lessonNotes': lessonNotes.map((e) => e.toJson()).toList(),
         'images': images.map((e) => e.toJson()).toList(),
         'wordPages': wordPages.map((e) => e.toJson()).toList(),
         'mindMaps': mindMaps.map((e) => e.toJson()).toList(),
@@ -106,6 +111,7 @@ class Lesson {
     String? summary,
     List<String>? keyPoints,
     String? notes,
+    List<LessonNote>? lessonNotes,
     List<LessonImage>? images,
     List<WordPage>? wordPages,
     List<MindMap>? mindMaps,
@@ -120,6 +126,7 @@ class Lesson {
       summary: summary ?? this.summary,
       keyPoints: keyPoints ?? this.keyPoints,
       notes: notes ?? this.notes,
+      lessonNotes: lessonNotes ?? this.lessonNotes,
       images: images ?? this.images,
       wordPages: wordPages ?? this.wordPages,
       mindMaps: mindMaps ?? this.mindMaps,
@@ -129,6 +136,28 @@ class Lesson {
       extra: _extra,
     );
   }
+}
+
+List<LessonNote> _parseLessonNotes(Map<String, dynamic> json) {
+  final parsed = (json['lessonNotes'] as List<dynamic>? ?? [])
+      .whereType<Map<String, dynamic>>()
+      .map(LessonNote.fromJson)
+      .toList();
+  if (parsed.isNotEmpty) return parsed;
+
+  final legacy = json['notes']?.toString().trim() ?? '';
+  if (legacy.isEmpty) return [];
+
+  final now = asDate(json['updatedAt']);
+  return [
+    LessonNote(
+      id: newId(),
+      title: 'ملاحظات عامة',
+      content: legacy,
+      createdAt: now,
+      updatedAt: now,
+    ),
+  ];
 }
 
 class AuthUser {

@@ -46,6 +46,7 @@ class LessonsService {
       summary: '',
       keyPoints: [],
       notes: '',
+      lessonNotes: [],
       images: [],
       wordPages: [],
       mindMaps: [],

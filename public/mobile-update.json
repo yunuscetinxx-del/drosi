@@ -1,9 +1,9 @@
 {
-  "version": "1.2.0",
-  "buildNumber": 3,
+  "version": "1.3.0",
+  "buildNumber": 4,
   "releasedAt": "2026-06-05",
-  "apkUrl": "https://github.com/yezensyria/drosi/releases/download/mobile-v1.2.0/durusi.apk",
-  "changelog": "• زر تركيز في الخريطة الذهنية لتوسيط العقدة على الشاشة\n• خلفية منقّطة، ضغطتان للتعديل، ضغطة مطولة للقائمة والخلفية\n• تحديث تلقائي من داخل التطبيق مع رقم إصدار وسجل التغييرات\n• واجهة احترافية: ثيم فاتح/داكن، إعدادات، بطاقات دروس",
+  "apkUrl": "https://github.com/yezensyria/drosi/releases/download/mobile-v1.3.0/app-release.apk",
+  "changelog": "• ملاحظات متعددة: إنشاء وفتح ونصوص طويلة مع زر لصق\n• خريطة ذهنية محسّنة مثل الحاسوب: تركيز وربط وفك الربط والانتقال\n• ربط العقد بالسحب من أيقونة ↔\n• روابط المشاركة بالدومين الصحيح",
   "mandatory": false,
   "minBuildNumber": 0
 }

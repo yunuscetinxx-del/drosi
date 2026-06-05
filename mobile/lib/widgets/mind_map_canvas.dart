@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/mind_map.dart';
+import 'mind_map_node_button.dart';
 
 /// أبعاد العقد — مطابقة لـ lib/mind-map-node.ts.
 const double kMindMapMainW = 168;
@@ -15,12 +16,25 @@ double mindMapNodeWidth(MindMapNode n) =>
 double mindMapNodeHeight(MindMapNode n) =>
     n.resolvedRole == MindMapNodeRole.main ? kMindMapMainH : kMindMapBranchH;
 
-/// لوحة الخريطة الذهنية: خلفية منقّطة، تكبير/تصغير، سحب العُقد.
+Offset mindMapNodeAnchor(MindMapNode node) {
+  final w = mindMapNodeWidth(node);
+  final h = mindMapNodeHeight(node);
+  return Offset(node.x + w / 2, node.y + h / 2);
+}
+
+Offset mindMapConnectHandle(MindMapNode node) {
+  final w = mindMapNodeWidth(node);
+  final h = mindMapNodeHeight(node);
+  return Offset(node.x + w + 10, node.y + h / 2);
+}
+
+/// لوحة الخريطة الذهنية — مطابقة تقريباً لموقع الحاسوب.
 class MindMapCanvas extends StatefulWidget {
   const MindMapCanvas({
     super.key,
     required this.nodes,
     required this.selectedId,
+    required this.allMaps,
     required this.onSelect,
     required this.onMove,
     required this.onMoveEnd,
@@ -30,10 +44,17 @@ class MindMapCanvas extends StatefulWidget {
     required this.onTapEmpty,
     required this.onLongPressEmpty,
     required this.onConnect,
+    required this.onUnlink,
+    required this.onDelete,
+    required this.onAddChild,
+    required this.onEdit,
+    required this.onFocusNode,
+    this.onNavigateToMap,
   });
 
   final List<MindMapNode> nodes;
   final String? selectedId;
+  final List<MindMap> allMaps;
   final ValueChanged<String> onSelect;
   final void Function(String id, Offset delta) onMove;
   final VoidCallback onMoveEnd;
@@ -43,17 +64,19 @@ class MindMapCanvas extends StatefulWidget {
   final VoidCallback onTapEmpty;
   final ValueChanged<Offset> onLongPressEmpty;
   final void Function(String fromId, String toId) onConnect;
+  final ValueChanged<String> onUnlink;
+  final ValueChanged<String> onDelete;
+  final ValueChanged<String> onAddChild;
+  final ValueChanged<MindMapNode> onEdit;
+  final ValueChanged<MindMapNode> onFocusNode;
+  final ValueChanged<String>? onNavigateToMap;
 
   @override
   State<MindMapCanvas> createState() => MindMapCanvasState();
 }
 
 class _ConnectDrag {
-  const _ConnectDrag({
-    required this.fromId,
-    required this.end,
-  });
-
+  const _ConnectDrag({required this.fromId, required this.end});
   final String fromId;
   final Offset end;
 }
@@ -74,20 +97,18 @@ class MindMapCanvasState extends State<MindMapCanvas> {
 
   double get _scale => _controller.value.getMaxScaleOnAxis();
 
-  double _nodeHeight(MindMapNode node) {
-    var h = mindMapNodeHeight(node);
-    if (node.note != null && node.note!.isNotEmpty) h += 56;
-    return h;
+  double _noteHeight(MindMapNode node) {
+    final note = node.note?.trim() ?? '';
+    if (note.isEmpty) return 0;
+    final lines = math.min(4, math.max(1, (note.length / 14).ceil()));
+    return 6 + 12 + lines * 15;
   }
+
+  double _nodeHeight(MindMapNode node) =>
+      mindMapNodeHeight(node) + _noteHeight(node);
 
   Rect _nodeRect(MindMapNode node) =>
       Rect.fromLTWH(node.x, node.y, mindMapNodeWidth(node), _nodeHeight(node));
-
-  Offset _connectHandleCenter(MindMapNode node) {
-    final w = mindMapNodeWidth(node);
-    final h = mindMapNodeHeight(node);
-    return Offset(node.x + w + 10, node.y + h / 2);
-  }
 
   Offset? _globalToCanvas(Offset global) {
     final box = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
@@ -98,6 +119,15 @@ class MindMapCanvasState extends State<MindMapCanvas> {
   MindMapNode? _nodeAt(Offset canvasPos) {
     for (final node in widget.nodes.reversed) {
       if (_nodeRect(node).contains(canvasPos)) return node;
+    }
+    return null;
+  }
+
+  MindMapNode? _connectSourceNode() {
+    final fromId = _connectDrag?.fromId;
+    if (fromId == null) return null;
+    for (final node in widget.nodes) {
+      if (node.id == fromId) return node;
     }
     return null;
   }
@@ -113,15 +143,6 @@ class MindMapCanvasState extends State<MindMapCanvas> {
     });
   }
 
-  MindMapNode? _connectSourceNode() {
-    final fromId = _connectDrag?.fromId;
-    if (fromId == null) return null;
-    for (final node in widget.nodes) {
-      if (node.id == fromId) return node;
-    }
-    return null;
-  }
-
   void _finishConnectDrag(Offset canvasPos) {
     final drag = _connectDrag;
     if (drag == null) return;
@@ -135,6 +156,22 @@ class MindMapCanvasState extends State<MindMapCanvas> {
     });
   }
 
+  void _zoomBy(double factor) {
+    if (_viewportSize.width <= 0) return;
+    final current = _scale;
+    final next = (current * factor).clamp(0.3, 3.0);
+    if ((next - current).abs() < 0.001) return;
+    final focal = Offset(_viewportSize.width / 2, _viewportSize.height / 2);
+    final m = _controller.value.clone();
+    m.translateByDouble(focal.dx, focal.dy, 0, 1);
+    m.scaleByDouble(next / current, next / current, 1, 1);
+    m.translateByDouble(-focal.dx, -focal.dy, 0, 1);
+    _controller.value = m;
+  }
+
+  void zoomIn() => _zoomBy(1.25);
+  void zoomOut() => _zoomBy(0.8);
+
   /// تمركز العرض على عقدة واحدة أو على كل العقد.
   void focusOn({MindMapNode? node}) {
     final targets = node != null ? [node] : widget.nodes;
@@ -146,93 +183,184 @@ class MindMapCanvasState extends State<MindMapCanvas> {
     var maxY = double.negativeInfinity;
     for (final n in targets) {
       final w = mindMapNodeWidth(n);
-      var h = mindMapNodeHeight(n);
-      if (n.note != null && n.note!.isNotEmpty) h += 52;
+      final h = _nodeHeight(n);
       minX = math.min(minX, n.x);
       minY = math.min(minY, n.y);
       maxX = math.max(maxX, n.x + w);
       maxY = math.max(maxY, n.y + h);
     }
 
-    final pad = 100.0;
+    const pad = 120.0;
     final boxW = maxX - minX + pad * 2;
     final boxH = maxY - minY + pad * 2;
     final cx = (minX + maxX) / 2;
     final cy = (minY + maxY) / 2;
 
-    if (_viewportSize.width <= 0 || _viewportSize.height <= 0 || boxW <= 0 || boxH <= 0) {
+    if (_viewportSize.width <= 0 ||
+        _viewportSize.height <= 0 ||
+        boxW <= 0 ||
+        boxH <= 0) {
       return;
     }
     final vw = _viewportSize.width;
     final vh = _viewportSize.height;
     final s = math.min(vw / boxW, vh / boxH).clamp(0.3, 3.0);
 
-    final matrix = Matrix4.identity()
+    _controller.value = Matrix4.identity()
       ..translateByDouble(vw / 2, vh / 2, 0, 1)
       ..scaleByDouble(s, s, 1, 1)
       ..translateByDouble(-cx, -cy, 0, 1);
-    _controller.value = matrix;
+  }
+
+  MindMap? _linkedMap(MindMapNode node) {
+    final id = node.linkedMapId;
+    if (id == null) return null;
+    for (final m in widget.allMaps) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF12141C) : const Color(0xFFF3F4F8);
+    final cardBg = isDark ? const Color(0xFF1A1D28) : Colors.white;
+    final cardFg = isDark ? Colors.white : const Color(0xFF1F2937);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
-        return InteractiveViewer(
-      transformationController: _controller,
-      minScale: 0.3,
-      maxScale: 3,
-      boundaryMargin: const EdgeInsets.all(800),
-      constrained: false,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTapEmpty,
-        onLongPressStart: (d) => widget.onLongPressEmpty(d.localPosition),
-        child: ColoredBox(
-          color: bg,
-          child: SizedBox(
-            key: _canvasKey,
-            width: canvasSize,
-            height: canvasSize,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _DotGridPainter(isDark: isDark),
-                  ),
-                ),
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _ConnectionPainter(
-                      widget.nodes,
-                      connectDrag: _connectDrag,
-                      connectFrom: _connectSourceNode(),
+        return Stack(
+          children: [
+            InteractiveViewer(
+              transformationController: _controller,
+              minScale: 0.3,
+              maxScale: 3,
+              boundaryMargin: const EdgeInsets.all(800),
+              constrained: false,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onTapEmpty,
+                onLongPressStart: (d) =>
+                    widget.onLongPressEmpty(d.localPosition),
+                child: ColoredBox(
+                  color: bg,
+                  child: SizedBox(
+                    key: _canvasKey,
+                    width: canvasSize,
+                    height: canvasSize,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _DotGridPainter(isDark: isDark),
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _ConnectionPainter(
+                              widget.nodes,
+                              connectDrag: _connectDrag,
+                              connectFrom: _connectSourceNode(),
+                            ),
+                          ),
+                        ),
+                        ..._buildUnlinkButtons(),
+                        ...widget.nodes.map(
+                          (n) => _buildNode(n, cardBg, cardFg, isDark),
+                        ),
+                        ...widget.nodes
+                            .where((n) => n.id == widget.selectedId)
+                            .map(_buildSelectedActions),
+                        ...widget.nodes.map(_buildTopButtons),
+                      ],
                     ),
                   ),
                 ),
-                ...widget.nodes.map(_buildNode),
-                ...widget.nodes.map(_buildConnectHandle),
-              ],
+              ),
             ),
-          ),
-        ),
-      ),
-    );
+            Positioned(
+              right: 12,
+              bottom: 72,
+              child: _ZoomToolbar(
+                onZoomIn: zoomIn,
+                onZoomOut: zoomOut,
+                onFit: () => focusOn(),
+              ),
+            ),
+            if (_connectDrag != null)
+              Positioned(
+                top: 8,
+                left: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: const Text(
+                      'أفلت الخط على القسم أو الفرع لربطهما',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF8B5CF6),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
       },
     );
   }
 
-  Widget _buildNode(MindMapNode node) {
+  List<Widget> _buildUnlinkButtons() {
+    final byId = {for (final n in widget.nodes) n.id: n};
+    return [
+      for (final node in widget.nodes)
+        if (node.parentId != null)
+          Builder(
+            builder: (_) {
+              final parent = byId[node.parentId];
+              if (parent == null) return const SizedBox.shrink();
+              final from = mindMapNodeAnchor(parent);
+              final to = mindMapNodeAnchor(node);
+              final mid = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
+              return Positioned(
+                left: mid.dx - 16,
+                top: mid.dy - 16,
+                child: MindMapNodeButton(
+                  icon: Icons.remove,
+                  color: const Color(0xFFF97316),
+                  size: 24,
+                  tooltip: 'فك الربط',
+                  onTap: () => widget.onUnlink(node.id),
+                ),
+              );
+            },
+          ),
+    ];
+  }
+
+  Widget _buildNode(MindMapNode node, Color cardBg, Color cardFg, bool isDark) {
     final isSelected = node.id == widget.selectedId;
     final isDropTarget = node.id == _connectDropTargetId;
     final isConnectSource = node.id == _connectDrag?.fromId;
     final w = mindMapNodeWidth(node);
+    final bodyH = mindMapNodeHeight(node);
     final isMain = node.resolvedRole == MindMapNodeRole.main;
-    final color = Color(colorFromHex(node.color));
+    final accent = Color(colorFromHex(node.color));
+    final note = node.note?.trim() ?? '';
 
     return Positioned(
       left: node.x,
@@ -261,56 +389,115 @@ class MindMapCanvasState extends State<MindMapCanvas> {
             children: [
               Container(
                 width: w,
-                height: mindMapNodeHeight(node),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                height: bodyH,
                 decoration: BoxDecoration(
-                  color: color,
-                  borderRadius:
-                      BorderRadius.circular(isMain ? kMindMapMainH / 2 : 8),
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(
+                    isMain ? kMindMapMainH / 2 : 8,
+                  ),
                   border: Border.all(
                     color: isDropTarget
                         ? const Color(0xFF8B5CF6)
-                        : isSelected || isConnectSource
-                            ? Colors.white
-                            : Colors.black26,
-                    width: isDropTarget || isSelected || isConnectSource ? 3 : 1,
+                        : isConnectSource
+                            ? accent
+                            : isSelected
+                                ? Colors.white
+                                : accent.withValues(alpha: 0.65),
+                    width: isDropTarget || isSelected || isConnectSource
+                        ? 2.5
+                        : isMain
+                            ? 2
+                            : 1.5,
                   ),
                   boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.4),
-                      blurRadius: isSelected ? 16 : 6,
-                      spreadRadius: isSelected ? 1 : 0,
+                    if (isSelected || isDropTarget || isConnectSource)
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                      ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 4,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.horizontal(
+                            left: Radius.circular(isMain ? kMindMapMainH / 2 : 8),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isMain)
+                      Positioned(
+                        right: 10,
+                        top: 10,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      )
+                    else
+                      Positioned(
+                        right: 6,
+                        top: 6,
+                        child: CustomPaint(
+                          size: const Size(10, 10),
+                          painter: _BranchMarkerPainter(accent),
+                        ),
+                      ),
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          node.text,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cardFg,
+                            fontWeight:
+                                isMain ? FontWeight.w600 : FontWeight.w400,
+                            fontSize: isMain ? 13 : 11,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                child: Text(
-                  node.text,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: isMain ? FontWeight.bold : FontWeight.w500,
-                    fontSize: isMain ? 14 : 12,
-                  ),
-                ),
               ),
-              if (node.note != null && node.note!.isNotEmpty)
+              if (note.isNotEmpty)
                 Container(
                   width: w,
-                  margin: const EdgeInsets.only(top: 4),
-                  padding: const EdgeInsets.all(6),
+                  margin: const EdgeInsets.only(top: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: accent.withValues(alpha: isDark ? 0.12 : 0.08),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: color.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.35),
+                    ),
                   ),
                   child: Text(
-                    node.note!,
+                    note,
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: Colors.black87),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cardFg.withValues(alpha: 0.75),
+                      height: 1.3,
+                    ),
                   ),
                 ),
             ],
@@ -320,71 +507,201 @@ class MindMapCanvasState extends State<MindMapCanvas> {
     );
   }
 
-  Widget _buildConnectHandle(MindMapNode node) {
+  Widget _buildSelectedActions(MindMapNode node) {
     final w = mindMapNodeWidth(node);
-    final h = mindMapNodeHeight(node);
-    final isSelected = node.id == widget.selectedId;
-    final isSource = node.id == _connectDrag?.fromId;
+    final bodyH = mindMapNodeHeight(node);
+    final totalH = _nodeHeight(node);
+    final accent = Color(colorFromHex(node.color));
 
-    return Positioned(
-      left: node.x + w + 10 - 14,
-      top: node.y + h / 2 - 14,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: (details) {
-          final anchor = _connectHandleCenter(node);
-          setState(() {
-            _connectDrag = _ConnectDrag(fromId: node.id, end: anchor);
-            _connectDropTargetId = null;
-          });
-          widget.onSelect(node.id);
-        },
-        onPanUpdate: (details) {
-          final local = _globalToCanvas(details.globalPosition);
-          if (local != null) _updateConnectDrag(local);
-        },
-        onPanEnd: (details) {
-          final local = _globalToCanvas(details.globalPosition);
-          if (local != null) _finishConnectDrag(local);
-        },
-        onPanCancel: () {
-          setState(() {
-            _connectDrag = null;
-            _connectDropTargetId = null;
-          });
-        },
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Center(
-            child: Container(
-              width: isSelected || isSource ? 22 : 18,
-              height: isSelected || isSource ? 22 : 18,
-              decoration: BoxDecoration(
-                color: const Color(0xFF8B5CF6),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.45),
-                    blurRadius: isSelected || isSource ? 8 : 4,
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.swap_horiz,
-                size: 12,
-                color: Colors.white,
-              ),
-            ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: node.x + w - 6,
+          top: node.y - 18,
+          child: MindMapNodeButton(
+            icon: Icons.close,
+            color: const Color(0xFFEF4444),
+            tooltip: 'حذف',
+            onTap: () => widget.onDelete(node.id),
           ),
         ),
+        Positioned(
+          left: node.x + w / 2 - 14,
+          top: node.y + totalH + 4,
+          child: MindMapNodeButton(
+            icon: Icons.add,
+            color: accent,
+            tooltip: 'إضافة فرع',
+            onTap: () => widget.onAddChild(node.id),
+          ),
+        ),
+        Positioned(
+          left: node.x - 18,
+          top: node.y + bodyH / 2 - 14,
+          child: MindMapNodeButton(
+            icon: Icons.edit,
+            color: const Color(0xFF3B82F6),
+            tooltip: 'تعديل',
+            onTap: () => widget.onEdit(node),
+          ),
+        ),
+        Positioned(
+          left: node.x + w + 2,
+          top: node.y + bodyH / 2 - 14,
+          child: _buildConnectHandleWidget(node),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopButtons(MindMapNode node) {
+    final w = mindMapNodeWidth(node);
+    final linked = _linkedMap(node);
+    final hasNav = linked != null && widget.onNavigateToMap != null;
+    final focusTop = hasNav ? -42.0 : -22.0;
+    final navTop = -22.0;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: node.x + w / 2 - 16,
+          top: node.y + focusTop,
+          child: MindMapNodeButton(
+            icon: Icons.center_focus_strong,
+            color: const Color(0xFF3B82F6),
+            size: 32,
+            tooltip: 'تركيز',
+            onTap: () => widget.onFocusNode(node),
+          ),
+        ),
+        if (hasNav)
+          Positioned(
+            left: node.x + w / 2 - 16,
+            top: node.y + navTop,
+            child: MindMapNodeButton(
+              icon: Icons.open_in_new,
+              color: const Color(0xFF10B981),
+              size: 32,
+              tooltip: linked.title.isEmpty
+                  ? 'فتح الخريطة المرتبطة'
+                  : linked.title,
+              onTap: () => widget.onNavigateToMap!(linked.id),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildConnectHandleWidget(MindMapNode node) {
+    const size = 28.0;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanStart: (_) {
+        final anchor = mindMapConnectHandle(node);
+        setState(() {
+          _connectDrag = _ConnectDrag(fromId: node.id, end: anchor);
+          _connectDropTargetId = null;
+        });
+        widget.onSelect(node.id);
+      },
+      onPanUpdate: (details) {
+        final local = _globalToCanvas(details.globalPosition);
+        if (local != null) _updateConnectDrag(local);
+      },
+      onPanEnd: (details) {
+        final local = _globalToCanvas(details.globalPosition);
+        if (local != null) _finishConnectDrag(local);
+      },
+      onPanCancel: () {
+        setState(() {
+          _connectDrag = null;
+          _connectDropTargetId = null;
+        });
+      },
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: const Color(0xFF8B5CF6),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8B5CF6).withValues(alpha: 0.45),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        child: const Icon(Icons.swap_horiz, size: 14, color: Colors.white),
       ),
     );
   }
 }
 
-/// شبكة نقاط مثل الموقع (نقاط صغيرة كل 24px + أكبر كل 96px).
+class _ZoomToolbar extends StatelessWidget {
+  const _ZoomToolbar({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onFit,
+  });
+
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onFit;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface.withValues(alpha: 0.95);
+    return Material(
+      elevation: 4,
+      borderRadius: BorderRadius.circular(12),
+      color: surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'تكبير',
+            icon: const Icon(Icons.zoom_in),
+            onPressed: onZoomIn,
+          ),
+          IconButton(
+            tooltip: 'تصغير',
+            icon: const Icon(Icons.zoom_out),
+            onPressed: onZoomOut,
+          ),
+          const Divider(height: 1),
+          IconButton(
+            tooltip: 'عرض الكل',
+            icon: const Icon(Icons.fit_screen),
+            onPressed: onFit,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BranchMarkerPainter extends CustomPainter {
+  _BranchMarkerPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color.withValues(alpha: 0.75);
+    final path = Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height / 2)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BranchMarkerPainter old) => old.color != color;
+}
+
 class _DotGridPainter extends CustomPainter {
   _DotGridPainter({required this.isDark});
   final bool isDark;
@@ -395,10 +712,14 @@ class _DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final small = Paint()
-      ..color = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : Colors.black.withValues(alpha: 0.06)
       ..style = PaintingStyle.fill;
     final large = Paint()
-      ..color = isDark ? Colors.white.withValues(alpha: 0.14) : Colors.black.withValues(alpha: 0.1)
+      ..color = isDark
+          ? Colors.white.withValues(alpha: 0.14)
+          : Colors.black.withValues(alpha: 0.1)
       ..style = PaintingStyle.fill;
 
     for (var x = _smallStep / 2; x < size.width; x += _smallStep) {
@@ -435,17 +756,11 @@ class _ConnectionPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  Offset _anchor(MindMapNode node) {
-    final w = mindMapNodeWidth(node);
-    final h = mindMapNodeHeight(node);
-    return Offset(node.x + w + 10, node.y + h / 2);
-  }
-
   @override
   void paint(Canvas canvas, Size size) {
     final byId = {for (final n in nodes) n.id: n};
     final paint = Paint()
-      ..strokeWidth = 2.5
+      ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
     if (connectDrag != null && connectFrom != null) {
@@ -453,7 +768,12 @@ class _ConnectionPainter extends CustomPainter {
         ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.9)
         ..strokeWidth = 2.5
         ..style = PaintingStyle.stroke;
-      _drawBezier(canvas, dragPaint, _anchor(connectFrom!), connectDrag!.end);
+      _drawBezier(
+        canvas,
+        dragPaint,
+        mindMapConnectHandle(connectFrom!),
+        connectDrag!.end,
+      );
     }
 
     for (final node in nodes) {
@@ -462,17 +782,13 @@ class _ConnectionPainter extends CustomPainter {
       final parent = byId[parentId];
       if (parent == null) continue;
 
-      final start = Offset(
-        parent.x + mindMapNodeWidth(parent) / 2,
-        parent.y + mindMapNodeHeight(parent) / 2,
+      paint.color = Color(colorFromHex(node.color)).withValues(alpha: 0.55);
+      _drawBezier(
+        canvas,
+        paint,
+        mindMapNodeAnchor(parent),
+        mindMapNodeAnchor(node),
       );
-      final end = Offset(
-        node.x + mindMapNodeWidth(node) / 2,
-        node.y + mindMapNodeHeight(node) / 2,
-      );
-
-      paint.color = Color(colorFromHex(node.color)).withValues(alpha: 0.6);
-      _drawBezier(canvas, paint, start, end);
     }
   }
 

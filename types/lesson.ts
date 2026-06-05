@@ -6,6 +6,8 @@ export interface Lesson {
   summary: string
   keyPoints: string[]
   notes: string
+  /** ملاحظات متعددة (تطبيق الجوال والمزامنة) */
+  lessonNotes?: LessonNoteEntry[]
   images: LessonImage[]
   wordPages: WordPage[]
   mindMaps: MindMap[]
@@ -57,6 +59,14 @@ export interface ImageAIAnalysis {
   studyNotes: string[]
   relatedConcepts: string[]
   analyzedAt: Date
+}
+
+export interface LessonNoteEntry {
+  id: string
+  title: string
+  content: string
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface WordPage {

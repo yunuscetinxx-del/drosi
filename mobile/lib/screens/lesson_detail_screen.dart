@@ -6,9 +6,11 @@ import '../models/lesson_image.dart';
 import '../models/mind_map.dart';
 import '../models/word_page.dart';
 import '../providers/app_state.dart';
+import '../models/lesson_note.dart';
 import '../tabs/lesson_details_tab.dart';
 import '../tabs/lesson_images_tab.dart';
 import '../tabs/lesson_mind_maps_tab.dart';
+import '../tabs/lesson_notes_tab.dart';
 import '../tabs/lesson_word_pages_tab.dart';
 import '../theme/app_theme.dart';
 
@@ -115,7 +117,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         }
       },
       child: DefaultTabController(
-        length: 4,
+        length: 5,
         child: Scaffold(
           appBar: AppBar(
             flexibleSpace: Container(
@@ -169,6 +171,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
               tabs: const [
                 Tab(icon: Icon(Icons.description_outlined), text: 'التفاصيل'),
+                Tab(icon: Icon(Icons.sticky_note_2_outlined), text: 'ملاحظات'),
                 Tab(icon: Icon(Icons.image_outlined), text: 'الصور'),
                 Tab(icon: Icon(Icons.account_tree_outlined), text: 'الخرائط'),
                 Tab(icon: Icon(Icons.article_outlined), text: 'صفحات'),
@@ -180,6 +183,11 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               LessonDetailsTab(
                 lesson: _lesson,
                 onChanged: _patch,
+              ),
+              LessonNotesTab(
+                lesson: _lesson,
+                onNotesChanged: (notes) =>
+                    _patch(_lesson.copyWith(lessonNotes: notes)),
               ),
               LessonImagesTab(
                 lesson: _lesson,
@@ -212,9 +220,26 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
   }
 
   void _appendToNotes(String text) {
-    final current = _lesson.notes.trim();
-    final next = current.isEmpty ? text : '$current\n\n$text';
-    _patch(_lesson.copyWith(notes: next));
+    final now = DateTime.now();
+    final notes = [..._lesson.lessonNotes];
+    if (notes.isEmpty) {
+      notes.add(
+        LessonNote(
+          id: LessonItemFactory._id(),
+          title: 'من الصور',
+          content: text,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+    } else {
+      final first = notes.first;
+      final merged = first.content.trim().isEmpty
+          ? text
+          : '${first.content.trim()}\n\n$text';
+      notes[0] = first.copyWith(content: merged, updatedAt: now);
+    }
+    _patch(_lesson.copyWith(lessonNotes: notes));
   }
 }
 
@@ -244,6 +269,17 @@ class LessonItemFactory {
       title: title,
       nodes: [],
       saved: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  static LessonNote lessonNote({String title = 'ملاحظة جديدة'}) {
+    final now = DateTime.now();
+    return LessonNote(
+      id: _id(),
+      title: title,
+      content: '',
       createdAt: now,
       updatedAt: now,
     );

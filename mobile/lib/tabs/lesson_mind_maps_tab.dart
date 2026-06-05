@@ -58,6 +58,7 @@ class LessonMindMapsTab extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) => MindMapEditorScreen(
           map: map,
+          allMaps: lesson.mindMaps,
           onChanged: (updated) {
             onMindMapsChanged(
               lesson.mindMaps
