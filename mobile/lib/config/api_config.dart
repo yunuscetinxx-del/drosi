@@ -5,7 +5,7 @@ class ApiConfig {
   static const _keyBaseUrl = 'api_base_url';
 
   static String get defaultBaseUrl {
-    return 'https://drosi.up.railway.app';
+    return 'https://sdda.up.railway.app';
   }
 
   static String _baseUrl = defaultBaseUrl;
