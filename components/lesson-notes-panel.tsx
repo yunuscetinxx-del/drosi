@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react"
 import type { LessonNoteEntry } from "@/types/lesson"
 import { createLessonNote, sortLessonNotes } from "@/lib/lesson-notes"
 import { notePreviewText } from "@/lib/lesson-note-content"
+import { importNoteFromClipboard } from "@/lib/note-import"
 import { LessonNoteHtmlView, LessonNoteRichEditor } from "@/components/lesson-note-rich-editor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useTranslations } from "@/components/locale-provider"
-import { ClipboardPaste, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
+import { ClipboardPaste, FileInput, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface LessonNotesPanelProps {
@@ -116,15 +117,21 @@ export function LessonNotesPanel({
   }, [notes, onNotesChange, openEditor])
 
   const pasteNewNote = useCallback(async () => {
-    let text = ""
-    try {
-      text = (await navigator.clipboard.readText())?.trim() ?? ""
-    } catch {
-      /* ignore */
-    }
+    const imported = await importNoteFromClipboard()
     const note = createLessonNote(
-      text ? t("lesson.notePastedTitle") : t("lesson.newNoteTitle"),
-      text ? `<p>${text.replace(/\n/g, "<br>")}</p>` : ""
+      imported?.suggestedTitle ?? t("lesson.notePastedTitle"),
+      imported?.content ?? ""
+    )
+    onNotesChange([note, ...notes])
+    openEditor(note)
+  }, [notes, onNotesChange, openEditor, t])
+
+  const importPerplexityNote = useCallback(async () => {
+    const imported = await importNoteFromClipboard()
+    if (!imported?.content) return
+    const note = createLessonNote(
+      imported.suggestedTitle ?? t("lesson.notePerplexityTitle"),
+      imported.content
     )
     onNotesChange([note, ...notes])
     openEditor(note)
@@ -147,12 +154,17 @@ export function LessonNotesPanel({
             {t("lesson.personalNotes")}
           </h3>
           <p className="text-xs text-muted-foreground mt-1">{t("lesson.notesRichHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("lesson.notesPerplexityHint")}</p>
         </div>
         {!readOnly && (
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => void pasteNewNote()}>
               <ClipboardPaste className="h-4 w-4 ml-1" />
               {t("lesson.pasteNote")}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void importPerplexityNote()}>
+              <FileInput className="h-4 w-4 ml-1" />
+              {t("lesson.importPerplexity")}
             </Button>
             <Button type="button" size="sm" onClick={addNote}>
               <Plus className="h-4 w-4 ml-1" />

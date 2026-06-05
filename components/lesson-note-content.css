@@ -64,6 +64,51 @@
   text-decoration: underline;
 }
 
+.lesson-note-content table.note-table,
+.lesson-note-editor-wrap .tiptap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  margin: 0.75em 0;
+}
+
+.lesson-note-content table.note-table th,
+.lesson-note-content table.note-table td,
+.lesson-note-editor-wrap .tiptap th,
+.lesson-note-editor-wrap .tiptap td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+  vertical-align: top;
+}
+
+.lesson-note-content table.note-table th,
+.lesson-note-editor-wrap .tiptap th {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+}
+
+.lesson-note-content table.note-table tr:nth-child(even) td,
+.lesson-note-editor-wrap .tiptap tr:nth-child(even) td {
+  background: hsl(var(--muted) / 0.2);
+}
+
+.lesson-note-content pre,
+.lesson-note-editor-wrap .tiptap pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.35);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.lesson-note-content code,
+.lesson-note-editor-wrap .tiptap code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
 .lesson-note-editor-wrap .tiptap {
   outline: none;
   min-height: min(58vh, 560px);

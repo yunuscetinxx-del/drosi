@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
+import { Table } from "@tiptap/extension-table"
+import TableRow from "@tiptap/extension-table-row"
+import TableHeader from "@tiptap/extension-table-header"
+import TableCell from "@tiptap/extension-table-cell"
 import Placeholder from "@tiptap/extension-placeholder"
 import Underline from "@tiptap/extension-underline"
 import TextAlign from "@tiptap/extension-text-align"
@@ -18,6 +22,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { normalizeNoteContentForEditor } from "@/lib/lesson-note-content"
+import { convertPasteToNoteHtml, readClipboardForNoteImport } from "@/lib/note-import"
 import { useTranslations } from "@/components/locale-provider"
 import {
   Bold,
@@ -240,6 +245,10 @@ export function LessonNoteRichEditor({
     editable: !readOnly,
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Underline,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
@@ -268,11 +277,13 @@ export function LessonNoteRichEditor({
     }
   }, [content, editor])
 
-  const pasteFromClipboard = useCallback(async () => {
+  const pasteSmartFromClipboard = useCallback(async () => {
+    if (!editor) return
     try {
-      const text = await navigator.clipboard.readText()
-      if (!text || !editor) return
-      editor.chain().focus().insertContent(text.replace(/\n/g, "<br>")).run()
+      const { text, html } = await readClipboardForNoteImport()
+      if (!text && !html) return
+      const content = convertPasteToNoteHtml(text, html)
+      editor.chain().focus().insertContent(content).run()
     } catch {
       /* ignore */
     }
@@ -283,9 +294,12 @@ export function LessonNoteRichEditor({
       {!readOnly && (
         <>
           <NoteToolbar editor={editor} t={t} />
-          <div className="border-b border-border px-3 py-1.5">
-            <Button type="button" variant="outline" size="sm" onClick={() => void pasteFromClipboard()}>
+          <div className="flex flex-wrap gap-2 border-b border-border px-3 py-1.5">
+            <Button type="button" variant="outline" size="sm" onClick={() => void pasteSmartFromClipboard()}>
               {t("lesson.pasteNote")}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void pasteSmartFromClipboard()}>
+              {t("lesson.importPerplexity")}
             </Button>
           </div>
         </>
