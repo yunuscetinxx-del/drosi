@@ -25,6 +25,9 @@ export const messages: Messages = {
   aiSettings: {
     title: "Gemini verbinden",
     subtitle: "Nutzen Sie Ihren kostenlosen Google-API-Schlüssel",
+    subscriptionNoteTitle: "Gemini-Abo ≠ API-Schlüssel",
+    subscriptionNoteBody:
+      "Gemini Advanced / Google AI Pro gilt nur in der Google-App. Durusi nutzt einen separaten AI-Studio-API-Schlüssel mit eigenen Limits. Bei Ratenlimit: eine Minute warten oder Abrechnung in AI Studio aktivieren.",
     step1: "Google AI Studio öffnen und mit Google anmelden",
     step2: "API-Schlüssel erstellen — kostenlos innerhalb der Tageslimits",
     step3: "Schlüssel hier einfügen und Verbinden klicken",

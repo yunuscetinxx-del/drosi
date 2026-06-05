@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { encryptApiKey, keyHint } from "@/lib/ai-key-crypto"
 import { validateGeminiApiKey } from "@/lib/gemini-client"
+import { isGeminiRateLimitError } from "@/lib/gemini-errors"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { getPublicAiSettings } from "@/lib/user-ai-credentials"
 import { prisma } from "@/lib/prisma"
@@ -33,11 +34,17 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "مفتاح Gemini غير صالح أو قصير جداً" }, { status: 400 })
   }
 
+  let verifyWarning: string | undefined
   try {
     await validateGeminiApiKey(apiKey)
   } catch (err) {
     const msg = err instanceof Error ? err.message : "فشل التحقق من المفتاح"
-    return NextResponse.json({ error: msg }, { status: 400 })
+    if (isGeminiRateLimitError(msg)) {
+      verifyWarning =
+        "تم حفظ المفتاح لكن التحقق تأخر بسبب حد الطلبات في AI Studio. انتظر دقيقة ثم جرّب التحليل."
+    } else {
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
   }
 
   await prisma.user.update({
@@ -50,7 +57,7 @@ export async function PUT(req: NextRequest) {
   })
 
   const settings = await getPublicAiSettings(session.userId)
-  return NextResponse.json(settings)
+  return NextResponse.json({ ...settings, warning: verifyWarning })
 }
 
 export async function DELETE(req: NextRequest) {

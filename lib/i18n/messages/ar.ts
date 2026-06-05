@@ -23,6 +23,9 @@ export const messages = {
   aiSettings: {
     title: "ربط Gemini",
     subtitle: "استخدم مفتاحك المجاني من Google — أنت تدفع الاستخدام لا التطبيق",
+    subscriptionNoteTitle: "اشتراك Gemini ≠ مفتاح API",
+    subscriptionNoteBody:
+      "اشتراك Gemini Advanced أو Google AI Pro يعمل في تطبيق Google فقط. دروسي يستخدم مفتاح API من AI Studio بحدود منفصلة. إن ظهر «تجاوزت الحد» انتظر دقيقة أو فعّل الفوترة في AI Studio (يمكن لبعض مشتركي Pro الحصول على رصيد Cloud عبر Google Developer Program).",
     step1: "اضغط «فتح Google AI Studio» وسجّل دخولك بحساب Google",
     step2: "أنشئ مفتاح API (Create API key) — مجاني ضمن الحدود اليومية",
     step3: "انسخ المفتاح والصقه هنا ثم اضغط «ربط»",

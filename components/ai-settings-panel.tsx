@@ -73,12 +73,12 @@ export function AiSettingsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: key }),
       })
-      const data = (await res.json()) as AiSettings & { error?: string }
+      const data = (await res.json()) as AiSettings & { error?: string; warning?: string }
       if (!res.ok) throw new Error(data.error || t("aiSettings.saveError"))
       setSettings(data)
       setApiKey("")
       setShowKey(false)
-      setSuccess(t("aiSettings.connected"))
+      setSuccess(data.warning ?? t("aiSettings.connected"))
     } catch (e) {
       setError(e instanceof Error ? e.message : t("aiSettings.saveError"))
     } finally {
@@ -142,6 +142,11 @@ export function AiSettingsPanel() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-3 text-sm text-muted-foreground space-y-2">
+          <p className="font-medium text-foreground">{t("aiSettings.subscriptionNoteTitle")}</p>
+          <p>{t("aiSettings.subscriptionNoteBody")}</p>
+        </div>
+
         <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
           <li>{t("aiSettings.step1")}</li>
           <li>{t("aiSettings.step2")}</li>

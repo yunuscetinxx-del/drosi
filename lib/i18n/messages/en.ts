@@ -25,6 +25,9 @@ export const messages: Messages = {
   aiSettings: {
     title: "Connect Gemini",
     subtitle: "Use your free Google API key — you pay usage, not the app",
+    subscriptionNoteTitle: "Gemini subscription ≠ API key",
+    subscriptionNoteBody:
+      "Gemini Advanced / Google AI Pro works in Google's app only. Durusi uses a separate AI Studio API key with its own limits. If you see a rate-limit error, wait a minute or enable billing in AI Studio (some Pro subscribers can claim Cloud credits via Google Developer Program).",
     step1: "Open Google AI Studio and sign in with your Google account",
     step2: "Create an API key — free within daily limits",
     step3: "Paste the key here and click Connect",
