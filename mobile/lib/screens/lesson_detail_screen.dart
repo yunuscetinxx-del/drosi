@@ -14,6 +14,7 @@ import '../tabs/lesson_mind_maps_tab.dart';
 import '../tabs/lesson_notes_tab.dart';
 import '../tabs/lesson_word_pages_tab.dart';
 import '../theme/app_theme.dart';
+import '../widgets/share_lesson_sheet.dart';
 
 class LessonDetailScreen extends StatefulWidget {
   const LessonDetailScreen({super.key, required this.lesson});
@@ -153,6 +154,11 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'مشاركة',
+                onPressed: () => ShareLessonSheet.show(context, lesson: _lesson),
+                icon: const Icon(Icons.share_outlined),
+              ),
               if (_saving)
                 const Padding(
                   padding: EdgeInsets.all(16),
@@ -201,6 +207,8 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                 lesson: _lesson,
                 onMindMapsChanged: (maps) =>
                     _patch(_lesson.copyWith(mindMaps: maps)),
+                onFoldersChanged: (folders) =>
+                    _patch(_lesson.copyWith(mindMapFolders: folders)),
               ),
               LessonWordPagesTab(
                 lesson: _lesson,
@@ -211,6 +219,8 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
                 lesson: _lesson,
                 onChanged: _patch,
                 onAddToNotes: _appendToNotes,
+                onCreateMindMap: _createMindMapFromAi,
+                onAddToActiveMindMap: _addNodesToFirstMindMap,
               ),
             ],
           ),
@@ -224,6 +234,39 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _createMindMapFromAi(String title, List<MindMapNode> nodes) {
+    final now = DateTime.now();
+    final map = MindMap(
+      id: LessonItemFactory._id(),
+      title: title,
+      nodes: nodes,
+      saved: false,
+      createdAt: now,
+      updatedAt: now,
+    );
+    _patch(_lesson.copyWith(mindMaps: [..._lesson.mindMaps, map]));
+  }
+
+  void _addNodesToFirstMindMap(List<MindMapNode> nodes) {
+    if (_lesson.mindMaps.isEmpty) {
+      _createMindMapFromAi('خريطة من المصادر', nodes);
+      return;
+    }
+    final first = _lesson.mindMaps.first;
+    final merged = MindMap(
+      id: first.id,
+      title: first.title,
+      nodes: [...first.nodes, ...nodes],
+      saved: first.saved,
+      folderId: first.folderId,
+      createdAt: first.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    _patch(_lesson.copyWith(
+      mindMaps: _lesson.mindMaps.map((m) => m.id == first.id ? merged : m).toList(),
+    ));
   }
 
   void _appendToNotes(String text) {

@@ -13,6 +13,8 @@ import '../services/app_update_service.dart';
 import '../services/auth_service.dart';
 import '../services/lesson_store.dart';
 import '../services/lessons_service.dart';
+import '../models/calendar_event.dart';
+import '../services/calendar_service.dart';
 import '../services/sync_service.dart';
 
 enum SyncStatus { idle, syncing, offline, error }
@@ -22,10 +24,13 @@ class AppState extends ChangeNotifier {
 
   final _auth = AuthService();
   final _lessons = LessonsService();
+  final _calendar = CalendarService();
   final _connectivity = Connectivity();
 
   AuthUser? user;
   List<Lesson> lessons = [];
+  List<CalendarEvent> calendarEvents = [];
+  bool calendarLoading = false;
   bool loading = true;
   String? error;
   String baseUrl = ApiConfig.baseUrl;
@@ -228,6 +233,7 @@ class AppState extends ChangeNotifier {
     await _auth.logout();
     user = null;
     lessons = [];
+    calendarEvents = [];
     pendingCount = 0;
     syncStatus = SyncStatus.idle;
     syncError = null;
@@ -257,6 +263,7 @@ class AppState extends ChangeNotifier {
       lastSyncedAt = DateTime.now();
       syncStatus = SyncStatus.idle;
       await _refreshPendingCount();
+      unawaited(loadCalendar(silent: true));
     } catch (e) {
       syncStatus = SyncStatus.error;
       syncError = e.toString().replaceFirst('Exception: ', '');
@@ -320,6 +327,48 @@ class AppState extends ChangeNotifier {
     lessons = lessons.where((l) => l.id != id).toList();
     await _activeStore?.markDeleted(id);
     await _persistLocalAndSync();
+  }
+
+  Future<void> loadCalendar({bool silent = false}) async {
+    if (user == null) return;
+    await _refreshConnectivity();
+    if (!online) return;
+    if (!silent) {
+      calendarLoading = true;
+      notifyListeners();
+    }
+    try {
+      calendarEvents = await _calendar.fetchEvents();
+    } catch (_) {
+      // التقويم اختياري
+    } finally {
+      calendarLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _saveCalendar() async {
+    if (!online || user == null) return;
+    await _calendar.saveEvents(calendarEvents);
+  }
+
+  Future<void> addCalendarEvent(CalendarEvent event) async {
+    calendarEvents = [...calendarEvents, event];
+    notifyListeners();
+    await _saveCalendar();
+  }
+
+  Future<void> updateCalendarEvent(CalendarEvent event) async {
+    calendarEvents =
+        calendarEvents.map((e) => e.id == event.id ? event : e).toList();
+    notifyListeners();
+    await _saveCalendar();
+  }
+
+  Future<void> deleteCalendarEvent(String id) async {
+    calendarEvents = calendarEvents.where((e) => e.id != id).toList();
+    notifyListeners();
+    await _saveCalendar();
   }
 
   @override

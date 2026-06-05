@@ -8,6 +8,7 @@ import '../screens/lesson_note_editor_screen.dart';
 import '../screens/lesson_note_view_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/lesson_note_content.dart';
+import '../utils/markdown_to_note_html.dart';
 import '../widgets/empty_state.dart';
 
 class LessonNotesTab extends StatelessWidget {
@@ -82,9 +83,13 @@ class LessonNotesTab extends StatelessWidget {
   Future<void> _createAndPaste(BuildContext context) async {
     final clip = await Clipboard.getData(Clipboard.kTextPlain);
     final pasted = clip?.text?.trim() ?? '';
+    final html = importClipboardToNoteHtml(pasted);
+    final title = pasted.isNotEmpty
+        ? extractTitleFromImportedContent(pasted)
+        : 'ملاحظة جديدة';
     final note = LessonItemFactory.lessonNote(
-      title: pasted.isNotEmpty ? 'ملاحظة ملصوقة' : 'ملاحظة جديدة',
-      content: pasted,
+      title: title,
+      content: html,
     );
     onNotesChanged([...lesson.lessonNotes, note]);
     if (!context.mounted) return;

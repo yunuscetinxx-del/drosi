@@ -9,6 +9,7 @@ import '../widgets/lesson_card.dart';
 import '../widgets/shimmer.dart';
 import 'add_lesson_screen.dart';
 import 'lesson_detail_screen.dart';
+import 'calendar_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -62,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _tab,
         children: const [
           _LessonsTab(),
+          CalendarScreen(),
           SettingsScreen(),
         ],
       ),
@@ -83,6 +85,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.menu_book_outlined),
             selectedIcon: Icon(Icons.menu_book),
             label: 'دروسي',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'التقويم',
           ),
           NavigationDestination(
             icon: Badge(

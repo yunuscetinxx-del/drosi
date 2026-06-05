@@ -1,3 +1,4 @@
+import 'chat_source_scope.dart';
 import 'json_utils.dart';
 
 class LessonAnalysisEntry {
@@ -110,20 +111,43 @@ class LessonChatThread {
     required this.createdAt,
     required this.updatedAt,
     this.analysisId,
+    this.sourceScope = ChatSourceScope.empty,
   });
 
   final String id;
   final String? analysisId;
   final String title;
+  final ChatSourceScope sourceScope;
   final List<LessonChatMessage> messages;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  LessonChatThread copyWith({
+    String? id,
+    String? analysisId,
+    String? title,
+    ChatSourceScope? sourceScope,
+    List<LessonChatMessage>? messages,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return LessonChatThread(
+      id: id ?? this.id,
+      analysisId: analysisId ?? this.analysisId,
+      title: title ?? this.title,
+      sourceScope: sourceScope ?? this.sourceScope,
+      messages: messages ?? this.messages,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 
   factory LessonChatThread.fromJson(Map<String, dynamic> json) {
     return LessonChatThread(
       id: json['id']?.toString() ?? newId(),
       analysisId: json['analysisId']?.toString(),
       title: json['title']?.toString() ?? '',
+      sourceScope: ChatSourceScope.fromJson(json['sourceScope']),
       messages: (json['messages'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(LessonChatMessage.fromJson)
@@ -137,6 +161,7 @@ class LessonChatThread {
         'id': id,
         if (analysisId != null) 'analysisId': analysisId,
         'title': title,
+        if (sourceScope.count > 0) 'sourceScope': sourceScope.toJson(),
         'messages': messages.map((m) => m.toJson()).toList(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),

@@ -662,6 +662,7 @@ export const MindMapsEditor = forwardRef<MindMapsEditorHandle, MindMapsEditorPro
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder={t("mindMap.searchMaps")}
                 className="h-8 ps-8 text-xs"
               />
@@ -710,7 +711,8 @@ export const MindMapsEditor = forwardRef<MindMapsEditorHandle, MindMapsEditorPro
                             <CollapsibleTrigger asChild>
                               <button
                                 type="button"
-                                className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-start text-xs font-medium text-muted-foreground hover:bg-muted/50"
+                                className="flex shrink-0 items-center rounded-md p-1 text-muted-foreground hover:bg-muted/50"
+                                aria-label={folder.title}
                               >
                                 <ChevronDown
                                   className={cn(
@@ -718,22 +720,25 @@ export const MindMapsEditor = forwardRef<MindMapsEditorHandle, MindMapsEditorPro
                                     !open && "-rotate-90"
                                   )}
                                 />
-                                <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500/90" />
-                                {!readOnly ? (
-                                  <Input
-                                    value={folder.title}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => renameFolder(folder.id, e.target.value)}
-                                    className="h-6 min-w-0 flex-1 border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0"
-                                  />
-                                ) : (
-                                  <span className="min-w-0 flex-1 truncate">{folder.title}</span>
-                                )}
-                                <span className="shrink-0 text-[10px] tabular-nums">
-                                  {folderMaps.length}
-                                </span>
                               </button>
                             </CollapsibleTrigger>
+                            <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500/90" />
+                            {!readOnly ? (
+                              <Input
+                                value={folder.title}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                onChange={(e) => renameFolder(folder.id, e.target.value)}
+                                className="h-6 min-w-0 flex-1 border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0"
+                              />
+                            ) : (
+                              <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
+                                {folder.title}
+                              </span>
+                            )}
+                            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                              {folderMaps.length}
+                            </span>
                             {!readOnly && onFoldersChange && (
                               <Button
                                 type="button"
@@ -816,6 +821,7 @@ export const MindMapsEditor = forwardRef<MindMapsEditorHandle, MindMapsEditorPro
                   <Input
                     value={activeMap.title}
                     onChange={(e) => renameMap(activeMap.id, e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
                     placeholder={t("mindMap.mapTitlePlaceholder")}
                     className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm font-semibold shadow-none focus-visible:ring-0 sm:text-base"
                   />

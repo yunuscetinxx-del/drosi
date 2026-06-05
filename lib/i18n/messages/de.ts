@@ -55,8 +55,102 @@ export const messages: Messages = {
   app: {
     title: "Durusi",
     subtitle: "Lektionen & Notizen verwalten",
-    metadataTitle: "Durusi - Lektionen & Notizen",
-    metadataDescription: "App zur Verwaltung von Lektionen, Notizen und Mindmaps",
+    metadataTitle: "Durusi — Intelligente Lernplattform",
+    metadataDescription:
+      "Lektionen organisieren, Schulbuchseiten mit KI analysieren und Mindmaps erstellen.",
+  },
+  marketing: {
+    nav: {
+      home: "Start",
+      pricing: "Preise",
+      startFree: "Kostenlos starten",
+      openApp: "App öffnen",
+    },
+    footer: {
+      tagline: "Arabisch-first Plattform für Lektionen und smartes Lernen",
+    },
+    hero: {
+      badge: "KI + Mindmaps",
+      title: "Smarter lernen. Besser organisiert.",
+      subtitle:
+        "Durusi vereint Notizen, Lektionsbilder, KI-Analyse und Mindmaps — Web und Mobil.",
+      ctaPrimary: "Kostenlos starten",
+      ctaSecondary: "Pläne ansehen",
+      note: "Keine Kreditkarte — der Free-Plan reicht zum Start",
+      statLessons: "Organisierte Lektionen",
+      statAi: "Schulbuch-Analyse",
+      statMaps: "Interaktive Mindmaps",
+    },
+    featuresTitle: "Alles für dein Lernen",
+    featuresSubtitle: "Für Schüler und Lehrkräfte",
+    features: [
+      {
+        title: "KI-Arbeitsbereich",
+        desc: "Buchseiten analysieren, Quellen wählen und mit der KI chatten.",
+      },
+      {
+        title: "Reiche Notizen",
+        desc: "Mehrere Notizen mit Markdown- und Tabellen-Einfügen.",
+      },
+      {
+        title: "Mindmaps",
+        desc: "Ordner, Knoten, Links, Auto-Layout — mit Mobil synchron.",
+      },
+      {
+        title: "Bildanalyse",
+        desc: "Lektionsfoto hochladen und Übungen sowie Regeln erhalten.",
+      },
+      {
+        title: "Lernkalender",
+        desc: "Prüfungen und Wiederholungen geräteübergreifend.",
+      },
+      {
+        title: "Mobile App",
+        desc: "Gleiches Konto auf Android — offline-fähig mit Sync.",
+      },
+    ],
+    cta: {
+      title: "Bereit, Lektionen zu organisieren?",
+      subtitle: "Kostenloses Konto in einer Minute erstellen.",
+      button: "Kostenloses Konto",
+    },
+  },
+  pricing: {
+    title: "Abonnements",
+    subtitle: "Kostenloser Einstieg und Pro für mehr",
+    footnote:
+      "Online-Zahlung demnächst. Bis dahin kostenlos registrieren oder Pro manuell anfragen.",
+    free: {
+      name: "Kostenlos",
+      price: "0",
+      period: "€ / Monat",
+      description: "Ideal zum Start und für den Alltag",
+      cta: "Kostenlos starten",
+      features: [
+        "Unbegrenzte Lektionen & Notizen",
+        "Bilder & Word-Seiten",
+        "Mindmaps & Ordner",
+        "Lernkalender",
+        "Eigenen Gemini-API-Schlüssel",
+        "Mobile App + Sync",
+      ],
+    },
+    pro: {
+      name: "Pro",
+      badge: "Beliebt",
+      price: "4,99 €",
+      period: "/ Monat",
+      description: "Für ambitionierte Lernende und Lehrkräfte",
+      cta: "Pro wählen",
+      features: [
+        "Alles aus Kostenlos",
+        "Voller KI-Arbeitsbereich",
+        "Erweiterte Freigabe",
+        "Server-KI-Guthaben",
+        "Prioritäts-Support",
+        "Erweiterter Export",
+      ],
+    },
   },
   lang: {
     label: "Sprache",

@@ -12,10 +12,11 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const next = searchParams.get("next") || "/"
+  const next = searchParams.get("next") || "/lessons"
+  const initialMode = searchParams.get("mode") === "register" ? "register" : "login"
   const { t } = useTranslations()
 
-  const [mode, setMode] = useState<"login" | "register">("login")
+  const [mode, setMode] = useState<"login" | "register">(initialMode)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)

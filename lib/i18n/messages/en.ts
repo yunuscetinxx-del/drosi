@@ -55,8 +55,102 @@ export const messages: Messages = {
   app: {
     title: "Durusi",
     subtitle: "Lesson & notes management",
-    metadataTitle: "Durusi - Lesson & Notes Management",
-    metadataDescription: "All-in-one app for lessons, notes, and mind maps",
+    metadataTitle: "Durusi — Smart Study Platform",
+    metadataDescription:
+      "Organize lessons, analyze school pages with AI, and build mind maps — free or Pro.",
+  },
+  marketing: {
+    nav: {
+      home: "Home",
+      pricing: "Pricing",
+      startFree: "Start free",
+      openApp: "Open app",
+    },
+    footer: {
+      tagline: "Arabic-first platform for lessons and smart learning",
+    },
+    hero: {
+      badge: "AI + mind maps",
+      title: "Study smarter. Stay organized.",
+      subtitle:
+        "Durusi brings notes, lesson images, AI analysis, and mind maps together — on web and mobile.",
+      ctaPrimary: "Start for free",
+      ctaSecondary: "View plans",
+      note: "No credit card — the free plan is enough to begin",
+      statLessons: "Organized lessons & notes",
+      statAi: "School page analysis",
+      statMaps: "Interactive mind maps",
+    },
+    featuresTitle: "Everything you need to study",
+    featuresSubtitle: "Built for students and teachers",
+    features: [
+      {
+        title: "AI workspace (NotebookLM-style)",
+        desc: "Analyze book pages, pick sources, and chat with AI about your lesson.",
+      },
+      {
+        title: "Rich notes",
+        desc: "Multiple notes with Markdown and table paste from Perplexity or elsewhere.",
+      },
+      {
+        title: "Mind maps",
+        desc: "Folders, nodes, links, auto-layout — synced with mobile.",
+      },
+      {
+        title: "Image analysis",
+        desc: "Upload a lesson photo and get exercises, rules, and a structured summary.",
+      },
+      {
+        title: "Study calendar",
+        desc: "Exam and review dates synced across devices.",
+      },
+      {
+        title: "Mobile app",
+        desc: "Same account on Android — offline-friendly with sync when back online.",
+      },
+    ],
+    cta: {
+      title: "Ready to organize your lessons?",
+      subtitle: "Create a free account in a minute and start your first lesson.",
+      button: "Create free account",
+    },
+  },
+  pricing: {
+    title: "Plans",
+    subtitle: "A free plan to start and Pro for more — simple and clear",
+    footnote:
+      "Online payments coming soon. Until then, sign up free or contact us to enable Pro manually.",
+    free: {
+      name: "Free",
+      price: "0",
+      period: "/ month",
+      description: "Perfect to start and organize daily study",
+      cta: "Start free",
+      features: [
+        "Unlimited lessons & notes",
+        "Images & Word-style pages",
+        "Mind maps & folders",
+        "Study calendar",
+        "Connect your Gemini API key",
+        "Mobile app + sync",
+      ],
+    },
+    pro: {
+      name: "Pro",
+      badge: "Most popular",
+      price: "$4.99",
+      period: "/ month",
+      description: "For serious students and professional teachers",
+      cta: "Get Pro",
+      features: [
+        "Everything in Free",
+        "Full AI workspace with multiple sources",
+        "Advanced lesson sharing",
+        "Server AI credits (no API key needed)",
+        "Priority support",
+        "Extended export & backup",
+      ],
+    },
   },
   lang: {
     label: "Language",

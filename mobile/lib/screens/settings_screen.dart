@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/ai_settings_card.dart';
 import '../widgets/app_update_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -27,6 +28,9 @@ class SettingsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           if (user != null) _AccountCard(state: state),
+          const SizedBox(height: 16),
+          _SectionTitle('الذكاء الاصطناعي'),
+          const AiSettingsCard(),
           const SizedBox(height: 16),
           _SectionTitle('المظهر'),
           _ThemeCard(state: state),

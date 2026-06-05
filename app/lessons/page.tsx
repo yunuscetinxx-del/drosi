@@ -31,7 +31,7 @@ import { useTranslations } from "@/components/locale-provider"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { AppNav } from "@/components/app-nav"
 
-export default function HomePage() {
+export default function LessonsPage() {
   const { t } = useTranslations()
   const {
     lessons,

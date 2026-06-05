@@ -122,8 +122,13 @@ function isTypingTarget(target: EventTarget | null): boolean {
   const tag = el.tagName
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
   if (el.isContentEditable) return true
+  if (el.closest("input, textarea, select, [contenteditable='true']")) return true
   if (el.closest("[data-radix-popper-content-wrapper]")) return true
   return false
+}
+
+function isTypingFocused(): boolean {
+  return isTypingTarget(document.activeElement)
 }
 
 type WorldRect = { x: number; y: number; w: number; h: number }
@@ -362,6 +367,7 @@ export function MindMap({
 
   useEffect(() => {
     const mindMapUiActive = () => {
+      if (isTypingFocused()) return false
       const root = containerRef.current
       if (!root) return false
       if (pointerInsideMapRef.current) return true
@@ -379,7 +385,7 @@ export function MindMap({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return
       if (e.repeat) return
-      if (isTypingTarget(e.target)) return
+      if (isTypingTarget(e.target) || isTypingFocused()) return
       if (!mindMapUiActive()) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
       e.preventDefault()

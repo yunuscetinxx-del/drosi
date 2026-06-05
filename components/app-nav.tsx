@@ -23,7 +23,7 @@ const linkClass = (active: boolean) =>
 export function AppNav({ shareLesson }: AppNavProps) {
   const pathname = usePathname()
   const { t } = useTranslations()
-  const lessonsActive = pathname === "/"
+  const lessonsActive = pathname === "/lessons"
   const showShare = Boolean(shareLesson && lessonsActive)
 
   return (
@@ -37,7 +37,7 @@ export function AppNav({ shareLesson }: AppNavProps) {
         {showShare && shareLesson && (
           <ShareLessonButton lesson={shareLesson} className="shrink-0 rounded-e-none border-0 shadow-none" />
         )}
-        <Link href="/" className={cn(linkClass(lessonsActive), showShare && "rounded-s-none ps-2")}>
+        <Link href="/lessons" className={cn(linkClass(lessonsActive), showShare && "rounded-s-none ps-2")}>
           <BookOpen className="h-4 w-4" />
           <span className="hidden sm:inline">{t("nav.lessons")}</span>
         </Link>

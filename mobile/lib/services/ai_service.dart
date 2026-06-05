@@ -154,6 +154,7 @@ class AiService {
     required String lessonTitle,
     required String lessonSubject,
     String? analysisId,
+    String? contextText,
     required List<LessonAnalysisEntry> analyses,
     required List<Map<String, String>> previousMessages,
   }) async {
@@ -166,6 +167,8 @@ class AiService {
           'lessonTitle': lessonTitle,
           'lessonSubject': lessonSubject,
           if (analysisId != null) 'analysisId': analysisId,
+          if (contextText != null && contextText.trim().isNotEmpty)
+            'contextText': contextText.trim(),
           'analyses': analyses
               .map((a) => {
                     'id': a.id,

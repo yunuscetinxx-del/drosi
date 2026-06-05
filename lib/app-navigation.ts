@@ -9,7 +9,7 @@ export type LessonTab =
   | "mindmap"
   | "ai"
 
-export type AppRoute = "/" | "/calendar"
+export type AppRoute = "/lessons" | "/calendar"
 
 const ROUTE_KEY = "durusi_last_route"
 const LESSON_ID_KEY = "durusi_selected_lesson_id"
@@ -28,7 +28,7 @@ const VALID_TABS = new Set<LessonTab>([
   "ai",
 ])
 
-const VALID_ROUTES = new Set<AppRoute>(["/", "/calendar"])
+const VALID_ROUTES = new Set<AppRoute>(["/lessons", "/calendar"])
 const VALID_CALENDAR_VIEWS = new Set<CalendarView>(["day", "week", "month", "agenda"])
 
 function readTabsMap(): Record<string, LessonTab> {

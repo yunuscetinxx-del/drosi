@@ -16,6 +16,8 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (pathname.startsWith("/login")) return NextResponse.next()
+  if (pathname === "/") return NextResponse.next()
+  if (pathname.startsWith("/pricing")) return NextResponse.next()
   if (pathname.startsWith("/share/")) return NextResponse.next()
   if (pathname.startsWith("/api/share/")) return NextResponse.next()
   if (pathname.startsWith("/api/auth")) return NextResponse.next()

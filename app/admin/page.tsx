@@ -71,7 +71,7 @@ export default function AdminPage() {
             <Shield className="h-12 w-12 mx-auto text-muted-foreground" />
             <p>صلاحية أدمن مطلوبة للوصول لهذه الصفحة.</p>
             <Button asChild variant="outline">
-              <Link href="/">العودة للتطبيق</Link>
+              <Link href="/lessons">العودة للتطبيق</Link>
             </Button>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default function AdminPage() {
             </div>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href="/">
+            <Link href="/lessons">
               <ArrowRight className="h-4 w-4 ml-1" />
               التطبيق
             </Link>

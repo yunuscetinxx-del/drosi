@@ -65,7 +65,7 @@ export default function SharedLessonPage() {
         <div className="flex shrink-0 items-center gap-2">
           <LanguageSwitcher />
           <Button variant="outline" size="sm" asChild>
-            <Link href="/">
+            <Link href="/lessons">
               <Home className="me-2 h-4 w-4" />
               {t("share.myLessons")}
             </Link>
@@ -83,7 +83,7 @@ export default function SharedLessonPage() {
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
           <p className="text-destructive">{error}</p>
           <Button asChild variant="outline">
-            <Link href="/">{t("share.myLessons")}</Link>
+            <Link href="/lessons">{t("share.myLessons")}</Link>
           </Button>
         </div>
       )}
