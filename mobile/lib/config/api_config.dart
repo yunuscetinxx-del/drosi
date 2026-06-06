@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/remote_config_service.dart';
@@ -7,7 +8,19 @@ class ApiConfig {
   static const _keyBaseUrl = 'api_base_url';
   static const _keyUserOverride = 'api_base_url_user_override';
 
-  static String get defaultBaseUrl => 'https://sdda.up.railway.app';
+  static String get defaultBaseUrl {
+    if (kIsWeb) {
+      final origin = Uri.base.origin;
+      final host = Uri.base.host;
+      // نسخة الويب على نفس دومين الموقع (مثلاً /flutter-app)
+      if (host.isNotEmpty &&
+          host != 'localhost' &&
+          host != '127.0.0.1') {
+        return origin;
+      }
+    }
+    return 'https://sdda.up.railway.app';
+  }
 
   static String _baseUrl = defaultBaseUrl;
   static bool _userOverride = false;

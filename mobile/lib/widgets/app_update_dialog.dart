@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:ota_update/ota_update.dart';
 
 import '../models/app_update_info.dart';
-import '../services/app_update_service.dart';
+import '../services/ota_install.dart';
 
 /// حوار إشعار التحديث مع سجل التغييرات وتقدّم التنزيل.
 class AppUpdateDialog extends StatefulWidget {
@@ -40,13 +40,17 @@ class AppUpdateDialog extends StatefulWidget {
 }
 
 class _AppUpdateDialogState extends State<AppUpdateDialog> {
-  final _service = AppUpdateService();
   bool _installing = false;
   double? _progress;
   String? _statusText;
   String? _error;
 
   Future<void> _startInstall() async {
+    if (kIsWeb) {
+      setState(() => _error = 'التثبيت من المتصفح غير متاح — استخدم نسخة الموقع');
+      return;
+    }
+
     setState(() {
       _installing = true;
       _error = null;
@@ -55,11 +59,11 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     });
 
     try {
-      await for (final event in _service.installUpdate(widget.update)) {
+      await for (final event in installApkUpdate(widget.update)) {
         if (!mounted) return;
         setState(() {
           _statusText = _labelForStatus(event.status);
-          if (event.status == OtaStatus.DOWNLOADING && event.value != null) {
+          if (event.status == 'DOWNLOADING' && event.value != null) {
             final pct = double.tryParse(event.value!);
             if (pct != null) _progress = (pct / 100).clamp(0.0, 1.0);
           }
@@ -75,15 +79,15 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
     }
   }
 
-  String _labelForStatus(OtaStatus status) {
+  String _labelForStatus(String status) {
     return switch (status) {
-      OtaStatus.DOWNLOADING => 'جارٍ التنزيل...',
-      OtaStatus.INSTALLING => 'جارٍ التثبيت...',
-      OtaStatus.ALREADY_RUNNING_ERROR => 'التثبيت قيد التشغيل مسبقاً',
-      OtaStatus.PERMISSION_NOT_GRANTED_ERROR =>
+      'DOWNLOADING' => 'جارٍ التنزيل...',
+      'INSTALLING' => 'جارٍ التثبيت...',
+      'ALREADY_RUNNING_ERROR' => 'التثبيت قيد التشغيل مسبقاً',
+      'PERMISSION_NOT_GRANTED_ERROR' =>
         'يُرجى السماح بتثبيت التطبيقات من هذا المصدر',
-      OtaStatus.INTERNAL_ERROR => 'خطأ داخلي',
-      OtaStatus.DOWNLOAD_ERROR => 'فشل التنزيل',
+      'INTERNAL_ERROR' => 'خطأ داخلي',
+      'DOWNLOAD_ERROR' => 'فشل التنزيل',
       _ => 'جارٍ المعالجة...',
     };
   }
@@ -154,11 +158,12 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
               onPressed: () => Navigator.pop(context, 'later'),
               child: const Text('لاحقاً'),
             ),
-          FilledButton.icon(
-            onPressed: _installing ? null : _startInstall,
-            icon: const Icon(Icons.download),
-            label: Text(_installing ? 'جارٍ التحديث...' : 'تثبيت التحديث'),
-          ),
+          if (!kIsWeb)
+            FilledButton.icon(
+              onPressed: _installing ? null : _startInstall,
+              icon: const Icon(Icons.download),
+              label: Text(_installing ? 'جارٍ التحديث...' : 'تثبيت التحديث'),
+            ),
         ],
       ),
     );

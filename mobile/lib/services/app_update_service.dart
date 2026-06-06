@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
-import 'package:ota_update/ota_update.dart';
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../config/api_config.dart';
 import '../models/app_update_info.dart';
+import '../utils/platform_info.dart';
 
 /// يتحقق من mobile-update.json على السيرفر ويثبّت APK على أندرويد.
 class AppUpdateService {
@@ -24,7 +23,7 @@ class AppUpdateService {
 
   /// يُرجع معلومات التحديث إن كان buildNumber على السيرفر أحدث من المثبّت.
   Future<AppUpdateInfo?> checkForUpdate() async {
-    if (!Platform.isAndroid) return null;
+    if (kIsWeb || !isAndroidPlatform) return null;
 
     final pkg = await packageInfo();
     final currentBuild = int.tryParse(pkg.buildNumber) ?? 0;
@@ -54,13 +53,5 @@ class AppUpdateService {
     } catch (_) {
       return null;
     }
-  }
-
-  /// تنزيل وتثبيت APK — يُرجع تدفق أحداث ota_update.
-  Stream<OtaEvent> installUpdate(AppUpdateInfo info) {
-    return OtaUpdate().execute(
-      info.apkUrl,
-      destinationFilename: 'drosi-update.apk',
-    );
   }
 }

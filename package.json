@@ -17,7 +17,11 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed-admin": "npx tsx scripts/seed-admin.ts",
-    "db:setup": "npx tsx scripts/db-setup.ts"
+    "db:setup": "npx tsx scripts/db-setup.ts",
+    "mobile:dev": "powershell -ExecutionPolicy Bypass -File scripts/mobile-dev.ps1",
+    "mobile:dev:emu": "powershell -ExecutionPolicy Bypass -File scripts/mobile-dev.ps1 -LaunchEmulator",
+    "mobile:web": "powershell -ExecutionPolicy Bypass -File scripts/mobile-web.ps1",
+    "mobile:web:deploy": "powershell -ExecutionPolicy Bypass -File scripts/mobile-web.ps1 -DeployToPublic"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
