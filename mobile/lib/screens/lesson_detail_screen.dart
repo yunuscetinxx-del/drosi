@@ -14,6 +14,7 @@ import '../tabs/lesson_mind_maps_tab.dart';
 import '../tabs/lesson_notes_tab.dart';
 import '../tabs/lesson_word_pages_tab.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_icons.dart';
 import '../widgets/share_lesson_sheet.dart';
 
 class LessonDetailScreen extends StatefulWidget {
@@ -43,7 +44,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
     });
   }
 
-  Future<bool> _save() async {
+  Future<bool> _save({String? successMessage}) async {
     if (!_dirty) return true;
     setState(() => _saving = true);
     try {
@@ -52,11 +53,11 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
         setState(() => _dirty = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 18),
-                SizedBox(width: 8),
-                Text('تم الحفظ والمزامنة'),
+                const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(successMessage ?? 'تم الحفظ والمزامنة'),
               ],
             ),
             backgroundColor: Colors.green.shade600,
@@ -75,6 +76,18 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// حفظ فوري للملاحظات ومزامنتها مع الموقع.
+  Future<void> _persistNotes(List<LessonNote> notes) async {
+    setState(() {
+      _lesson = _lesson.copyWith(
+        lessonNotes: notes,
+        updatedAt: DateTime.now(),
+      );
+      _dirty = true;
+    });
+    await _save(successMessage: 'تم حفظ الملاحظات ومزامنتها مع الموقع');
   }
 
   Future<bool> _onWillPop() async {
@@ -157,7 +170,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               IconButton(
                 tooltip: 'مشاركة',
                 onPressed: () => ShareLessonSheet.show(context, lesson: _lesson),
-                icon: const Icon(Icons.share_outlined),
+                icon: AppIcons.share(),
               ),
               if (_saving)
                 const Padding(
@@ -174,15 +187,25 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               isScrollable: true,
               tabAlignment: TabAlignment.center,
               indicatorColor: Colors.white,
+              indicatorWeight: 3,
+              indicatorSize: TabBarIndicatorSize.label,
               labelColor: Colors.white,
-              unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
-              tabs: const [
-                Tab(icon: Icon(Icons.description_outlined), text: 'التفاصيل'),
-                Tab(icon: Icon(Icons.sticky_note_2_outlined), text: 'ملاحظات'),
-                Tab(icon: Icon(Icons.image_outlined), text: 'الصور'),
-                Tab(icon: Icon(Icons.account_tree_outlined), text: 'الخرائط'),
-                Tab(icon: Icon(Icons.article_outlined), text: 'صفحات'),
-                Tab(icon: Icon(Icons.auto_awesome), text: 'ذكاء'),
+              unselectedLabelColor: Colors.white.withValues(alpha: 0.65),
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+              tabs: [
+                Tab(icon: AppIcons.details(), text: 'التفاصيل'),
+                Tab(icon: AppIcons.notes(), text: 'ملاحظات'),
+                Tab(icon: AppIcons.images(), text: 'الصور'),
+                Tab(icon: AppIcons.mindMaps(), text: 'الخرائط'),
+                Tab(icon: AppIcons.wordPages(), text: 'صفحات'),
+                Tab(icon: AppIcons.ai(), text: 'ذكاء'),
               ],
             ),
           ),
@@ -194,8 +217,7 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
               ),
               LessonNotesTab(
                 lesson: _lesson,
-                onNotesChanged: (notes) =>
-                    _patch(_lesson.copyWith(lessonNotes: notes)),
+                onNotesChanged: _persistNotes,
               ),
               LessonImagesTab(
                 lesson: _lesson,
@@ -225,10 +247,11 @@ class _LessonDetailScreenState extends State<LessonDetailScreen> {
             ],
           ),
           floatingActionButton: _dirty && !_saving
-              ? FloatingActionButton.extended(
+              ? AppFab(
+                  heroTag: 'lesson_save',
                   onPressed: _save,
-                  icon: const Icon(Icons.save),
-                  label: const Text('حفظ التغييرات'),
+                  icon: Icons.cloud_done_rounded,
+                  label: 'حفظ التغييرات',
                 )
               : null,
         ),

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:html_editor_enhanced/html_editor.dart';
+import 'package:flutter/services.dart';
 
 import '../models/lesson_note.dart';
 import '../utils/lesson_note_content.dart';
+import '../utils/markdown_to_note_html.dart'
+    show extractTitleFromImportedContent, looksLikeMarkdown, markdownToNoteHtml;
+import '../widgets/app_icons.dart';
 
+/// محرر ملاحظات — نص/Markdown قابل للتعديل، يُحفظ كـ HTML.
 class LessonNoteEditorScreen extends StatefulWidget {
   const LessonNoteEditorScreen({
     super.key,
@@ -12,7 +16,7 @@ class LessonNoteEditorScreen extends StatefulWidget {
   });
 
   final LessonNote note;
-  final ValueChanged<LessonNote> onChanged;
+  final Future<void> Function(LessonNote note) onChanged;
 
   @override
   State<LessonNoteEditorScreen> createState() => _LessonNoteEditorScreenState();
@@ -20,195 +24,256 @@ class LessonNoteEditorScreen extends StatefulWidget {
 
 class _LessonNoteEditorScreenState extends State<LessonNoteEditorScreen> {
   late final TextEditingController _title;
-  late final HtmlEditorController _htmlController;
-  int _charCount = 0;
+  late final TextEditingController _body;
+  late final FocusNode _bodyFocus;
+  late final ScrollController _scroll;
+  bool _saving = false;
+  bool _dirty = false;
 
   @override
   void initState() {
     super.initState();
     _title = TextEditingController(text: widget.note.title);
-    _htmlController = HtmlEditorController();
-    _charCount = notePreviewText(widget.note.content, max: 100000).length;
+    _body = TextEditingController(text: noteContentForEditing(widget.note.content));
+    _bodyFocus = FocusNode();
+    _scroll = ScrollController();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _body.text.isEmpty) _bodyFocus.requestFocus();
+    });
   }
 
   @override
   void dispose() {
-    _flushSave();
     _title.dispose();
+    _body.dispose();
+    _bodyFocus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _flushSave() async {
-    final html = await _htmlController.getText();
-    widget.onChanged(
-      widget.note.copyWith(
-        title: _title.text,
-        content: html,
-        updatedAt: DateTime.now(),
-      ),
+  String _buildContent() {
+    final text = _body.text.trim();
+    if (text.isEmpty) return '<p></p>';
+    if (looksLikeMarkdown(text)) {
+      return ensureNoteTableClass(markdownToNoteHtml(text));
+    }
+    return editableTextToNoteHtml(text);
+  }
+
+  LessonNote _buildNote() {
+    return widget.note.copyWith(
+      title: _title.text.trim(),
+      content: _buildContent(),
+      updatedAt: DateTime.now(),
     );
   }
 
-  Future<void> _emit({String? html}) async {
-    final content = html ?? await _htmlController.getText();
-    if (!mounted) return;
+  void _markDirty() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
+
+  Future<void> _saveAndClose() async {
+    setState(() => _saving = true);
+    try {
+      await widget.onChanged(_buildNote());
+      if (mounted) Navigator.pop(context);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final clip = await Clipboard.getData(Clipboard.kTextPlain);
+    final pasted = clip?.text ?? '';
+    if (pasted.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الحافظة فارغة')),
+      );
+      return;
+    }
+
     setState(() {
-      _charCount = notePreviewText(content, max: 100000).length;
+      final current = _body.text.trim();
+      _body.text = current.isEmpty ? pasted.trim() : '$current\n\n${pasted.trim()}';
+      _body.selection = TextSelection.collapsed(offset: _body.text.length);
+      _dirty = true;
     });
-    widget.onChanged(
-      widget.note.copyWith(
-        title: _title.text,
-        content: content,
-        updatedAt: DateTime.now(),
-      ),
+
+    if (_title.text.trim().isEmpty) {
+      _title.text = extractTitleFromImportedContent(pasted);
+    }
+
+    _bodyFocus.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم اللصق'), duration: Duration(seconds: 1)),
     );
   }
 
-  String _formatDate(DateTime d) {
-    final local = d.toLocal();
-    return '${local.year}/${local.month.toString().padLeft(2, '0')}/${local.day.toString().padLeft(2, '0')} '
-        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  Future<bool> _onWillPop() async {
+    if (!_dirty) return true;
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حفظ التغييرات؟'),
+        content: const Text('لديك تعديلات لم تُحفظ بعد.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'discard'),
+            child: const Text('تجاهل'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'stay'),
+            child: const Text('متابعة'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'save'),
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (action == 'save') {
+      await widget.onChanged(_buildNote());
+      return true;
+    }
+    return action == 'discard';
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final editorHeight = MediaQuery.of(context).size.height - 220;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetColor = isDark ? scheme.surface : const Color(0xFFFFFCF5);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('تحرير الملاحظة'),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _title,
-                  onChanged: (_) => _emit(),
-                  textInputAction: TextInputAction.next,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final leave = await _onWillPop();
+        if (leave && context.mounted) Navigator.pop(context);
+      },
+      child: Scaffold(
+        backgroundColor: sheetColor,
+        appBar: AppBar(
+          backgroundColor: sheetColor,
+          title: Text(
+            _dirty ? 'غير محفوظ' : 'ملاحظة',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: _dirty
+                  ? Colors.orange.shade700
+                  : scheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'لصق',
+              onPressed: _pasteFromClipboard,
+              icon: AppIcons.paste(),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: TextButton(
+                onPressed: _saving ? null : _saveAndClose,
+                child: _saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'تم',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                  decoration: const InputDecoration(
-                    labelText: 'عنوان الملاحظة',
-                    prefixIcon: Icon(Icons.title),
-                    border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: TextField(
+                  controller: _title,
+                  onChanged: (_) => _markDirty(),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        height: 1.25,
+                      ),
+                  decoration: InputDecoration(
+                    hintText: 'عنوان',
+                    hintStyle: TextStyle(
+                      color: scheme.onSurface.withValues(alpha: 0.35),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                  ),
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => _bodyFocus.requestFocus(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
+                  child: TextField(
+                    controller: _body,
+                    focusNode: _bodyFocus,
+                    onChanged: (_) => _markDirty(),
+                    maxLines: null,
+                    minLines: 24,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontSize: 17,
+                          height: 1.55,
+                          color: scheme.onSurface.withValues(alpha: 0.92),
+                        ),
+                    decoration: InputDecoration(
+                      hintText: 'ابدأ الكتابة أو الصق محتوى…',
+                      hintStyle: TextStyle(
+                        color: scheme.onSurface.withValues(alpha: 0.35),
+                        fontSize: 17,
+                        height: 1.55,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isDense: true,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.schedule,
-                        size: 16,
-                        color: scheme.onSurface.withValues(alpha: 0.5)),
-                    const SizedBox(width: 6),
-                    Text(
-                      'آخر تعديل: ${_formatDate(widget.note.updatedAt)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurface.withValues(alpha: 0.55),
-                          ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'ألوان، عناوين، قوائم — يُزامن مع الموقع',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurface.withValues(alpha: 0.45),
-                      ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: HtmlEditor(
-                controller: _htmlController,
-                htmlEditorOptions: HtmlEditorOptions(
-                  hint: 'اكتب أو الصق نصاً طويلاً هنا...\n\nيمكنك تنسيق النص: لون، تمييز، عناوين، قوائم.',
-                  initialText: normalizeNoteHtml(widget.note.content),
-                  shouldEnsureVisible: true,
-                  adjustHeightForKeyboard: true,
-                  autoAdjustHeight: false,
-                ),
-                htmlToolbarOptions: HtmlToolbarOptions(
-                  toolbarPosition: ToolbarPosition.belowEditor,
-                  toolbarType: ToolbarType.nativeScrollable,
-                  defaultToolbarButtons: [
-                    const StyleButtons(),
-                    const FontSettingButtons(fontSizeUnit: false),
-                    const FontButtons(clearAll: false),
-                    const ColorButtons(),
-                    const ListButtons(listStyles: false),
-                    const ParagraphButtons(
-                      textDirection: false,
-                      lineHeight: false,
-                      caseConverter: false,
-                    ),
-                    const InsertButtons(
-                      video: false,
-                      audio: false,
-                      table: false,
-                      hr: true,
-                      otherFile: false,
-                    ),
-                    const OtherButtons(
-                      fullscreen: false,
-                      help: false,
-                      copy: true,
-                      paste: true,
-                      undo: true,
-                      redo: true,
-                    ),
-                  ],
-                ),
-                otherOptions: OtherOptions(height: editorHeight.clamp(280, 900)),
-                callbacks: Callbacks(
-                  onChangeContent: (String? changed) {
-                    if (changed != null) _emit(html: changed);
-                  },
-                ),
               ),
-            ),
+            ],
           ),
-          Material(
-            elevation: 8,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  children: [
-                    Text(
-                      '$_charCount حرف',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurface.withValues(alpha: 0.5),
-                          ),
-                    ),
-                    const Spacer(),
-                    Icon(Icons.cloud_done_outlined,
-                        size: 18,
-                        color: scheme.primary.withValues(alpha: 0.7)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'يُحفظ مع الدرس',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: scheme.primary,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

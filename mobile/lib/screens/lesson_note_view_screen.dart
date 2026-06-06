@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/lesson_note.dart';
 import '../utils/lesson_note_content.dart';
+import '../widgets/app_icons.dart';
 import '../widgets/lesson_note_html_view.dart';
 
-/// عرض الملاحظة للقراءة بملء الشاشة — التعديل من زر منفصل.
+/// عرض الملاحظة للقراءة بملء الشاشة — التعديل من أيقونة القلم في الأعلى.
 class LessonNoteViewScreen extends StatelessWidget {
   const LessonNoteViewScreen({
     super.key,
@@ -28,71 +29,65 @@ class LessonNoteViewScreen extends StatelessWidget {
     final charCount = notePreviewText(note.content, max: 100000).length;
 
     return Scaffold(
-      backgroundColor: scheme.surfaceContainerLowest,
+      backgroundColor: scheme.surface,
       appBar: AppBar(
         title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        leading: IconButton(
+          tooltip: 'إغلاق',
+          icon: AppIcons.close(),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             tooltip: 'تعديل',
-            icon: const Icon(Icons.edit_outlined),
+            icon: AppIcons.edit(size: AppIcons.md),
             onPressed: onEdit,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: MediaQuery.removePadding(
+        context: context,
+        removeLeft: true,
+        removeRight: true,
+        child: SingleChildScrollView(
+        padding: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+              child: Row(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Row(
-                      children: [
-                        Icon(Icons.schedule,
-                            size: 16,
-                            color: scheme.onSurface.withValues(alpha: 0.5)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'آخر تعديل: ${_formatDate(note.updatedAt)}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurface.withValues(alpha: 0.55),
-                              ),
+                  AppIcons.schedule(
+                      size: 16,
+                      color: scheme.onSurface.withValues(alpha: 0.5)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'آخر تعديل: ${_formatDate(note.updatedAt)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.55),
                         ),
-                        const Spacer(),
-                        Text(
-                          '$charCount حرف',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: scheme.onSurface.withValues(alpha: 0.45),
-                              ),
-                        ),
-                      ],
-                    ),
                   ),
-                  const SizedBox(height: 8),
-                  LessonNoteHtmlView(content: note.content),
+                  const Spacer(),
+                  Text(
+                    '$charCount حرف',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.45),
+                        ),
+                  ),
                 ],
               ),
             ),
-          ),
-          Material(
-            elevation: 6,
-            color: scheme.surface,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                child: FilledButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit),
-                  label: const Text('تعديل الملاحظة'),
-                ),
-              ),
+            LessonNoteHtmlView(
+              content: note.content,
+              sheetStyle: false,
+              fullWidth: true,
             ),
-          ),
-        ],
+            SizedBox(height: MediaQuery.paddingOf(context).bottom + 8),
+          ],
+        ),
+      ),
       ),
     );
   }

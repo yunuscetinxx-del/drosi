@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/app_state.dart';
 
 import '../models/lesson.dart';
 import '../models/lesson_note.dart';
 import '../screens/lesson_detail_screen.dart' show LessonItemFactory;
 import '../screens/lesson_note_editor_screen.dart';
 import '../screens/lesson_note_view_screen.dart';
-import '../theme/app_theme.dart';
 import '../utils/lesson_note_content.dart';
-import '../utils/markdown_to_note_html.dart';
+import '../utils/markdown_to_note_html.dart' show extractTitleFromImportedContent;
+import '../widgets/app_icons.dart';
 import '../widgets/empty_state.dart';
 
 class LessonNotesTab extends StatelessWidget {
@@ -19,7 +22,7 @@ class LessonNotesTab extends StatelessWidget {
   });
 
   final Lesson lesson;
-  final ValueChanged<List<LessonNote>> onNotesChanged;
+  final Future<void> Function(List<LessonNote> notes) onNotesChanged;
 
   List<LessonNote> get _sorted {
     final list = [...lesson.lessonNotes];
@@ -33,7 +36,7 @@ class LessonNotesTab extends StatelessWidget {
     return Scaffold(
       body: notes.isEmpty
           ? const EmptyState(
-              icon: Icons.sticky_note_2_outlined,
+              icon: Icons.edit_note_rounded,
               title: 'لا توجد ملاحظات بعد',
               message:
                   'أنشئ ملاحظات متعددة، الصق نصوصاً طويلة، وافتحها لاحقاً — تُزامن مع الموقع عند الحفظ.',
@@ -56,57 +59,61 @@ class LessonNotesTab extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton.extended(
+          AppFab(
             heroTag: 'note_paste',
             onPressed: () => _createAndPaste(context),
-            icon: const Icon(Icons.content_paste),
-            label: const Text('لصق ملاحظة'),
+            icon: Icons.content_paste_rounded,
+            label: 'لصق ملاحظة',
+            isPrimary: false,
           ),
           const SizedBox(height: 12),
-          FloatingActionButton.extended(
+          AppFab(
             heroTag: 'note_add',
             onPressed: () => _create(context),
-            icon: const Icon(Icons.add),
-            label: const Text('ملاحظة جديدة'),
+            icon: Icons.add_circle_rounded,
+            label: 'ملاحظة جديدة',
           ),
         ],
       ),
     );
   }
 
-  void _create(BuildContext context) {
+  Future<void> _create(BuildContext context) async {
     final note = LessonItemFactory.lessonNote();
-    onNotesChanged([...lesson.lessonNotes, note]);
+    await onNotesChanged([...lesson.lessonNotes, note]);
+    if (!context.mounted) return;
     _edit(context, note);
   }
 
   Future<void> _createAndPaste(BuildContext context) async {
     final clip = await Clipboard.getData(Clipboard.kTextPlain);
     final pasted = clip?.text?.trim() ?? '';
-    final html = importClipboardToNoteHtml(pasted);
     final title = pasted.isNotEmpty
         ? extractTitleFromImportedContent(pasted)
         : 'ملاحظة جديدة';
     final note = LessonItemFactory.lessonNote(
       title: title,
-      content: html,
+      content: pasted,
     );
-    onNotesChanged([...lesson.lessonNotes, note]);
+    final notes = [...lesson.lessonNotes, note];
+    await onNotesChanged(notes);
     if (!context.mounted) return;
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => LessonNoteEditorScreen(
           note: note,
-          onChanged: (updated) {
-            onNotesChanged(
-              lesson.lessonNotes
-                  .map((n) => n.id == updated.id ? updated : n)
-                  .toList(),
-            );
-          },
+          onChanged: (updated) => _replaceNote(context, updated),
         ),
       ),
+    );
+  }
+
+  Future<void> _replaceNote(BuildContext context, LessonNote updated) async {
+    final live = context.read<AppState>().lessonById(lesson.id);
+    final base = live?.lessonNotes ?? lesson.lessonNotes;
+    await onNotesChanged(
+      base.map((n) => n.id == updated.id ? updated : n).toList(),
     );
   }
 
@@ -132,13 +139,7 @@ class LessonNotesTab extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) => LessonNoteEditorScreen(
           note: note,
-          onChanged: (updated) {
-            onNotesChanged(
-              lesson.lessonNotes
-                  .map((n) => n.id == updated.id ? updated : n)
-                  .toList(),
-            );
-          },
+          onChanged: (updated) => _replaceNote(context, updated),
         ),
       ),
     );
@@ -149,7 +150,7 @@ class LessonNotesTab extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 32),
+        icon: Icon(Icons.delete_rounded, color: Colors.red.shade400, size: 32),
         title: const Text('حذف الملاحظة؟'),
         content: Text('سيُحذف «$title» نهائياً.'),
         actions: [
@@ -166,7 +167,7 @@ class LessonNotesTab extends StatelessWidget {
       ),
     );
     if (ok == true) {
-      onNotesChanged(
+      await onNotesChanged(
         lesson.lessonNotes.where((n) => n.id != note.id).toList(),
       );
     }
@@ -188,7 +189,7 @@ class _NoteCard extends StatelessWidget {
 
   String _preview(String text) {
     final t = notePreviewText(text);
-    if (t.isEmpty) return 'ملاحظة فارغة — اضغط للعرض أو زر التعديل';
+    if (t.isEmpty) return 'ملاحظة فارغة — اضغط للعرض';
     return t;
   }
 
@@ -211,19 +212,7 @@ class _NoteCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF59E0B), AppTheme.accent],
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.sticky_note_2, color: Colors.white),
-              ),
+              const AppIconBadge(icon: Icons.edit_note_rounded),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -252,9 +241,10 @@ class _NoteCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.schedule,
-                            size: 14,
-                            color: scheme.onSurface.withValues(alpha: 0.45)),
+                        AppIcons.schedule(
+                          size: 14,
+                          color: scheme.onSurface.withValues(alpha: 0.45),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           _formatDate(note.updatedAt),
@@ -276,17 +266,24 @@ class _NoteCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'تعديل',
-                icon: Icon(Icons.edit_outlined,
-                    color: scheme.primary.withValues(alpha: 0.85)),
-                onPressed: onEdit,
-              ),
-              IconButton(
-                tooltip: 'حذف',
-                icon: Icon(Icons.delete_outline,
-                    color: Colors.red.withValues(alpha: 0.7)),
-                onPressed: onDelete,
+              const SizedBox(width: 6),
+              Column(
+                children: [
+                  AppActionIcon(
+                    tooltip: 'تعديل',
+                    icon: Icons.edit_rounded,
+                    color: scheme.primary,
+                    onPressed: onEdit,
+                  ),
+                  const SizedBox(height: 6),
+                  AppActionIcon(
+                    tooltip: 'حذف',
+                    icon: Icons.delete_rounded,
+                    color: Colors.red.shade400,
+                    background: Colors.red.withValues(alpha: 0.1),
+                    onPressed: onDelete,
+                  ),
+                ],
               ),
             ],
           ),

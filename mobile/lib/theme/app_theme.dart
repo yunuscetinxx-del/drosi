@@ -8,6 +8,18 @@ class AppTheme {
   static const Color seed = Color(0xFF6366F1);
   static const Color accent = Color(0xFF8B5CF6);
 
+  static const LinearGradient noteGradient = LinearGradient(
+    colors: [Color(0xFFF59E0B), Color(0xFF8B5CF6)],
+    begin: Alignment.topRight,
+    end: Alignment.bottomLeft,
+  );
+
+  static const LinearGradient headerGradient = LinearGradient(
+    colors: [Color(0xFF06B6D4), Color(0xFF6366F1)],
+    begin: Alignment.centerRight,
+    end: Alignment.centerLeft,
+  );
+
   static const double radius = 16;
   static const double radiusSm = 12;
   static const double radiusLg = 24;

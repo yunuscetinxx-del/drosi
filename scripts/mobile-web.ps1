@@ -29,8 +29,8 @@ try {
         exit 0
     }
 
-    Write-Host "Building Flutter web..." -ForegroundColor Cyan
-    flutter build web --release --no-wasm-dry-run
+    Write-Host "Building Flutter web for localhost (base-href /)..." -ForegroundColor Cyan
+    flutter build web --release --no-wasm-dry-run --base-href "/"
     Write-Host ""
     Write-Host "Open in browser: http://localhost:$Port" -ForegroundColor Green
     Write-Host "API: https://sdda.up.railway.app (or same site if deployed to /flutter-app)" -ForegroundColor Yellow

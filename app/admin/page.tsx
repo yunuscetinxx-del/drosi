@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Download, Search, Shield, ArrowRight } from "lucide-react"
 import { SiteConfigPanel } from "@/components/site-config-panel"
+import { AdminBackupPanel } from "@/components/admin-backup-panel"
 
 type ProfileRow = {
   userId: string
@@ -87,9 +88,9 @@ export default function AdminPage() {
           <div className="flex items-center gap-3">
             <Shield className="h-6 w-6 text-primary" />
             <div>
-              <h1 className="text-xl font-bold">لوحة الأدمن — ملفات التعلّم</h1>
+              <h1 className="text-xl font-bold">لوحة الأدمن</h1>
               <p className="text-xs text-muted-foreground">
-                JSON منظم + تصدير MD لكل مستخدم
+                نسخ احتياطي كامل، ملفات التعلّم، وإعدادات التطبيق
               </p>
             </div>
           </div>
@@ -103,6 +104,7 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-8">
+        <AdminBackupPanel />
         <SiteConfigPanel admin />
         <div className="grid gap-4 sm:grid-cols-2">
         <Card>
