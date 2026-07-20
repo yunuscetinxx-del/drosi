@@ -6,4 +6,10 @@ export async function register() {
   } catch (e) {
     console.error("[instrumentation] ensureAdminUserFromEnv:", e)
   }
+  try {
+    const { startBackupScheduler } = await import("./lib/backup-scheduler")
+    startBackupScheduler()
+  } catch (e) {
+    console.error("[instrumentation] startBackupScheduler:", e)
+  }
 }

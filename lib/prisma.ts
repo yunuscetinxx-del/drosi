@@ -7,10 +7,22 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient(databaseUrl: string): PrismaClient {
-  return new PrismaClient({
+  const client = new PrismaClient({
     datasources: { db: { url: databaseUrl } },
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   })
+
+  // PRAGMA (مع SET) يُرجع صفاً بالقيمة الجديدة في SQLite، لذا نستخدم queryRaw لا executeRaw
+  // (executeRaw يرفض أي استعلام يُرجع نتائج تحت SQLite).
+  // WAL mode: يقلّل تعارض القفل بين القراءة والكتابة المتزامنة. إعداد دائم في ملف القاعدة —
+  // تكراره عند كل اتصال غير ضار (idempotent).
+  void client.$queryRawUnsafe("PRAGMA journal_mode = WAL;").catch(() => {})
+  // busy_timeout: ينتظر بدل فشل فوري برسالة "database is locked" عند تزاحم كتابة نادر.
+  void client.$queryRawUnsafe("PRAGMA busy_timeout = 5000;").catch(() => {})
+  // synchronous=NORMAL: التوازن الموصى به مع WAL بين الأمان والأداء (توصية SQLite/Prisma الرسمية).
+  void client.$queryRawUnsafe("PRAGMA synchronous = NORMAL;").catch(() => {})
+
+  return client
 }
 
 /**
