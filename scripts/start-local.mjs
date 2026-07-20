@@ -40,12 +40,21 @@ console.log("  Drosi — تشغيل الموقع محلياً")
 console.log("========================================")
 console.log(`[drosi] جارٍ تشغيل الخادم على ${SERVER_URL} ...`)
 
-const npmCmd = isWindows ? "npm.cmd" : "npm"
-const child = spawn(npmCmd, ["run", "dev"], {
-  cwd: root,
-  stdio: "inherit",
-  env: process.env,
-})
+// على ويندوز: npm هو ملف npm.cmd، ويحتاج shell:true لتفادي خطأ "spawn EINVAL"
+// عند التشغيل من اختصار سطح المكتب. نمرّر الأمر كسلسلة نصية واحدة مع shell:true
+// لتفادي أيضاً تحذير Node بخصوص خلط args[] مع shell:true.
+const child = isWindows
+  ? spawn("npm.cmd run dev", {
+      cwd: root,
+      stdio: "inherit",
+      env: process.env,
+      shell: true,
+    })
+  : spawn("npm", ["run", "dev"], {
+      cwd: root,
+      stdio: "inherit",
+      env: process.env,
+    })
 
 child.on("exit", (code) => {
   process.exit(code ?? 0)
