@@ -13,6 +13,7 @@ import {
   readSelectedLessonId,
   writeSelectedLessonId,
 } from "@/lib/app-navigation"
+import { uploadImageDataUrl } from "@/lib/upload-client"
 
 const generateId = () => Math.random().toString(36).substring(2, 11)
 
@@ -158,25 +159,58 @@ export function useLessons() {
     })
   }, [])
 
-  const addImage = useCallback((lessonId: string, imageUrl: string) => {
-    const newImage: LessonImage = {
-      id: generateId(),
-      url: imageUrl,
-      annotations: [],
-    }
+  const applyImageUrl = useCallback((lessonId: string, imageId: string, url: string) => {
     setLessons((prev) =>
       prev.map((lesson) =>
         lesson.id === lessonId
-          ? { ...lesson, images: [...lesson.images, newImage], updatedAt: new Date() }
+          ? {
+              ...lesson,
+              images: lesson.images.map((img) => (img.id === imageId ? { ...img, url } : img)),
+            }
           : lesson
       )
     )
     setSelectedLesson((prev) =>
       prev?.id === lessonId
-        ? { ...prev, images: [...prev.images, newImage], updatedAt: new Date() }
+        ? {
+            ...prev,
+            images: prev.images.map((img) => (img.id === imageId ? { ...img, url } : img)),
+          }
         : prev
     )
   }, [])
+
+  const addImage = useCallback(
+    (lessonId: string, imageUrl: string) => {
+      const newImage: LessonImage = {
+        id: generateId(),
+        url: imageUrl,
+        annotations: [],
+      }
+      setLessons((prev) =>
+        prev.map((lesson) =>
+          lesson.id === lessonId
+            ? { ...lesson, images: [...lesson.images, newImage], updatedAt: new Date() }
+            : lesson
+        )
+      )
+      setSelectedLesson((prev) =>
+        prev?.id === lessonId
+          ? { ...prev, images: [...prev.images, newImage], updatedAt: new Date() }
+          : prev
+      )
+
+      // نحفظ الصورة كملف محلي على القرص في الخلفية، ثم نستبدل الرابط الطويل (data URL)
+      // برابط ملف قصير — دون التأثير على تجربة الإضافة الفورية.
+      if (imageUrl.startsWith("data:")) {
+        void (async () => {
+          const savedUrl = await uploadImageDataUrl(imageUrl)
+          if (savedUrl) applyImageUrl(lessonId, newImage.id, savedUrl)
+        })()
+      }
+    },
+    [applyImageUrl]
+  )
 
   const removeImage = useCallback((lessonId: string, imageId: string) => {
     setLessons((prev) =>

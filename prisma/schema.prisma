@@ -1,11 +1,11 @@
-// Prisma 5: عميل PostgreSQL تقليدي — يكفي تعيين DATABASE_URL في البيئة (مثلاً Neon أو Supabase).
+// Prisma 5: قاعدة بيانات محلية SQLite — الملف داخل مجلد التخزين المحلي (انظر lib/local-storage-config.ts).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,10 +15,10 @@ model User {
   name            String        @default("")
   email           String        @unique
   passwordHash    String
-  lessons            Json
-  calendarEvents     Json          @default("[]")
-  /// ملف تعلّم المستخدم الذي يبنيه الذكاء (JSON منظم — يُصدَّر MD للأدمن)
-  aiLearningProfile  Json          @default("{}")
+  lessons            String
+  calendarEvents     String        @default("[]")
+  /// ملف تعلّم المستخدم الذي يبنيه الذكاء (JSON منظم — يُصدَّر MD للأدمن)
+  aiLearningProfile  String        @default("{}")
   /// مفتاح Gemini API مشفّر (AES-256-GCM) — اختياري
   geminiApiKeyEnc    String?
   /// آخر 4 أحرف من المفتاح للعرض فقط (مثل abcd)
@@ -39,7 +39,7 @@ model LessonShare {
   permission String   @default("read")
   allowCopy  Boolean  @default(true)
   active     Boolean  @default(true)
-  scope      Json?
+  scope      String?
   createdAt  DateTime @default(now())
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)

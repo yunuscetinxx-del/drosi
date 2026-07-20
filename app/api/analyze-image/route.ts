@@ -12,7 +12,8 @@ import { AiNotConfiguredError, resolveAiCredentials } from "@/lib/user-ai-creden
 import { buildSchoolAnalysisPrompt } from "@/lib/school-analysis-prompt"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { stringifyJsonColumn } from "@/lib/json-column"
+import { isLocalFileUrl, readLocalFileAsDataUrl } from "@/lib/local-files"
 
 export async function POST(req: NextRequest) {
   const session = await getSessionFromRequest(req)
@@ -41,6 +42,17 @@ export async function POST(req: NextRequest) {
     body
   if (!imageUrl || typeof imageUrl !== "string") {
     return NextResponse.json({ error: "رابط الصورة مطلوب" }, { status: 400 })
+  }
+
+  // الصور المخزَّنة محلياً (/api/files/...) لا يمكن لخدمة الذكاء الاصطناعي الوصول إليها مباشرة؛
+  // نقرأها من القرص ونحوّلها إلى data URL قبل الإرسال.
+  let resolvedImageUrl = imageUrl
+  if (isLocalFileUrl(imageUrl)) {
+    const dataUrl = await readLocalFileAsDataUrl(imageUrl)
+    if (!dataUrl) {
+      return NextResponse.json({ error: "تعذّر تحميل الصورة" }, { status: 404 })
+    }
+    resolvedImageUrl = dataUrl
   }
 
   let userProfile = null
@@ -75,7 +87,7 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: [
             { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageUrl } },
+            { type: "image_url", image_url: { url: resolvedImageUrl } },
           ],
         },
       ],
@@ -103,7 +115,7 @@ export async function POST(req: NextRequest) {
         )
         await prisma.user.update({
           where: { id: session.userId },
-          data: { aiLearningProfile: updated as unknown as Prisma.InputJsonValue },
+          data: { aiLearningProfile: stringifyJsonColumn(updated) },
         })
       } catch (e) {
         console.error("[analyze-image profile]", e)

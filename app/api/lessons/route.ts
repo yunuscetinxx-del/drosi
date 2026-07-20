@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { reviveLessonsFromJSON } from "@/lib/lessons-revive"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { parseJsonColumn, stringifyJsonColumn } from "@/lib/json-column"
 
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequest(req)
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "غير مصرّح" }, { status: 401 })
     }
 
-    const raw = user.lessons
+    const raw = parseJsonColumn<unknown[]>(user.lessons, [])
     const arr = Array.isArray(raw) ? raw : []
     const lessons = reviveLessonsFromJSON(arr)
     return NextResponse.json({ lessons })
@@ -50,7 +50,7 @@ export async function PUT(req: NextRequest) {
   try {
     await prisma.user.update({
       where: { id: session.userId },
-      data: { lessons: lessons as Prisma.InputJsonValue },
+      data: { lessons: stringifyJsonColumn(lessons) },
     })
   } catch (e) {
     console.error("[lessons PUT]", e)

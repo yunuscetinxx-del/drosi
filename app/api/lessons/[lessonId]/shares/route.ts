@@ -8,7 +8,7 @@ import {
   validateShareScope,
 } from "@/lib/lesson-share-scope"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { stringifyJsonColumn } from "@/lib/json-column"
 import type { SharePermission, ShareScope } from "@/types/share"
 
 type RouteCtx = { params: Promise<{ lessonId: string }> }
@@ -100,8 +100,8 @@ export async function POST(req: NextRequest, ctx: RouteCtx) {
       permission,
       allowCopy,
       active: true,
-      scope: (scope ?? undefined) as Prisma.InputJsonValue | undefined,
-    } as Prisma.LessonShareUncheckedCreateInput,
+      scope: scope ? stringifyJsonColumn(scope) : undefined,
+    },
   })
 
   return NextResponse.json({

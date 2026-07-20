@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         name,
         email,
         passwordHash,
-        lessons: [],
+        lessons: "[]",
         isAdmin: false,
       },
     })

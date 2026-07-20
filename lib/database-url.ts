@@ -1,38 +1,28 @@
-const SUPABASE_PROJECT_REF = "ibvgndobpiqzxbffokup"
+import { getDbFilePath } from "@/lib/local-storage-config"
 
 function stripQuotes(value: string): string {
   return value.replace(/^"|"$/g, "").trim()
 }
 
-function isPlaceholderDatabaseUrl(url: string): boolean {
-  return (
-    url.includes("localhost") ||
-    url.includes("127.0.0.1") ||
-    url.includes("johndoe") ||
-    url.includes("@mydb")
-  )
+/** يحوّل مسار Windows/Unix إلى صيغة رابط SQLite المقبولة من Prisma. */
+function toSqliteFileUrl(absolutePath: string): string {
+  return `file:${absolutePath.replace(/\\/g, "/")}`
 }
 
-/** يبني رابط Postgres لـ Supabase من SUPABASE_DB_PASSWORD أو DATABASE_URL. */
+/**
+ * يبني رابط قاعدة البيانات المحلية (SQLite) ضمن مجلد التخزين المحلي —
+ * أو يستخدم DATABASE_URL صراحةً إن كان مضبوطاً (لدعم Postgres/سحابي عند الحاجة).
+ */
 export function resolveDatabaseUrl(): string {
-  const password = process.env.SUPABASE_DB_PASSWORD?.trim()
-  if (password) {
-    return `postgresql://postgres:${encodeURIComponent(password)}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres`
-  }
-
   const direct = process.env.DATABASE_URL ? stripQuotes(process.env.DATABASE_URL) : ""
-  if (direct && !isPlaceholderDatabaseUrl(direct)) {
+  if (direct) {
     return direct
   }
 
-  // أثناء مرحلة البناء الساكن (next build) لا يوجد اتصال بقاعدة بيانات؛
-  // نُرجع رابطاً وهمياً ليكتمل البناء دون فشل. الخطأ سيظهر فقط عند استخدام
-  // prisma فعلياً في وقت التشغيل (runtime) إن لم تكن DATABASE_URL مضبوطة.
+  // أثناء مرحلة البناء الساكن (next build) لا حاجة لاتصال فعلي بقاعدة البيانات.
   if (process.env.NEXT_PHASE === "phase-production-build") {
-    return "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+    return "file:./placeholder-build.db"
   }
 
-  throw new Error(
-    "Missing database connection. Set SUPABASE_DB_PASSWORD or DATABASE_URL in .env"
-  )
+  return toSqliteFileUrl(getDbFilePath())
 }

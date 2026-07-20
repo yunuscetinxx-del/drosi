@@ -7,8 +7,16 @@ import { EMPTY_LEARNING_PROFILE } from "@/types/ai-learning"
 import type { LessonAnalysisContent } from "@/types/lesson-analysis"
 
 export function parseLearningProfile(raw: unknown): AILearningProfile {
-  if (!raw || typeof raw !== "object") return EMPTY_LEARNING_PROFILE()
-  const p = raw as Partial<AILearningProfile>
+  let value: unknown = raw
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      value = null
+    }
+  }
+  if (!value || typeof value !== "object") return EMPTY_LEARNING_PROFILE()
+  const p = value as Partial<AILearningProfile>
   return {
     version: 1,
     updatedAt: typeof p.updatedAt === "string" ? p.updatedAt : new Date().toISOString(),

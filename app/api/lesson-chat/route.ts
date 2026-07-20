@@ -7,7 +7,7 @@ import { callAiChat } from "@/lib/ai-chat-client"
 import { AiNotConfiguredError, resolveAiCredentials } from "@/lib/user-ai-credentials"
 import { getSessionFromRequest } from "@/lib/auth-server"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
+import { stringifyJsonColumn } from "@/lib/json-column"
 
 export async function POST(req: NextRequest) {
   const session = await getSessionFromRequest(req)
@@ -96,7 +96,7 @@ ${message}`
 
     await prisma.user.update({
       where: { id: session.userId },
-      data: { aiLearningProfile: updated as unknown as Prisma.InputJsonValue },
+      data: { aiLearningProfile: stringifyJsonColumn(updated) },
     })
 
     return NextResponse.json({ reply: reply.trim() || "تعذّر توليد إجابة." })

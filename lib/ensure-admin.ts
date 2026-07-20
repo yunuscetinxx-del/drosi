@@ -33,7 +33,7 @@ export async function ensureAdminUserFromEnv(): Promise<void> {
       data: {
         email,
         passwordHash,
-        lessons: [],
+        lessons: "[]",
         isAdmin: true,
       },
     })

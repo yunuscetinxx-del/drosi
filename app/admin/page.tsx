@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2, Download, Search, Shield, ArrowRight } from "lucide-react"
 import { SiteConfigPanel } from "@/components/site-config-panel"
 import { AdminBackupPanel } from "@/components/admin-backup-panel"
+import { LocalStoragePanel } from "@/components/local-storage-panel"
 
 type ProfileRow = {
   userId: string
@@ -105,6 +106,7 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-8">
         <AdminBackupPanel />
+        <LocalStoragePanel />
         <SiteConfigPanel admin />
         <div className="grid gap-4 sm:grid-cols-2">
         <Card>

@@ -1,7 +1,7 @@
-import type { Prisma } from "@prisma/client"
 import type { Lesson } from "@/types/lesson"
 import { reviveLesson, reviveLessonsFromJSON } from "@/lib/lessons-revive"
 import { prisma } from "@/lib/prisma"
+import { parseJsonColumn, stringifyJsonColumn } from "@/lib/json-column"
 
 export async function getUserLessons(userId: string): Promise<Lesson[]> {
   const user = await prisma.user.findUnique({
@@ -9,14 +9,14 @@ export async function getUserLessons(userId: string): Promise<Lesson[]> {
     select: { lessons: true },
   })
   if (!user) return []
-  const raw = user.lessons
+  const raw = parseJsonColumn<unknown[]>(user.lessons, [])
   return reviveLessonsFromJSON(Array.isArray(raw) ? raw : [])
 }
 
 export async function saveUserLessons(userId: string, lessons: Lesson[]): Promise<void> {
   await prisma.user.update({
     where: { id: userId },
-    data: { lessons: lessons as unknown as Prisma.InputJsonValue },
+    data: { lessons: stringifyJsonColumn(lessons) },
   })
 }
 

@@ -107,8 +107,16 @@ export function getShareScopeCounts(
 }
 
 export function parseShareScope(raw: unknown): ShareScope | null {
-  if (!raw || typeof raw !== "object") return null
-  const o = raw as Record<string, unknown>
+  let value: unknown = raw
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      value = null
+    }
+  }
+  if (!value || typeof value !== "object") return null
+  const o = value as Record<string, unknown>
   const scope: ShareScope = {}
   if (typeof o.includeDetails === "boolean") scope.includeDetails = o.includeDetails
   if (o.imageIds === null) scope.imageIds = null

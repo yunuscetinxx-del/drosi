@@ -18,6 +18,8 @@
     "db:studio": "prisma studio",
     "db:seed-admin": "npx tsx scripts/seed-admin.ts",
     "db:setup": "npx tsx scripts/db-setup.ts",
+    "start:local": "node scripts/start-local.mjs",
+    "shortcut:create": "powershell -ExecutionPolicy Bypass -File scripts/create-desktop-shortcut.ps1",
     "mobile:dev": "powershell -ExecutionPolicy Bypass -File scripts/mobile-dev.ps1",
     "mobile:dev:emu": "powershell -ExecutionPolicy Bypass -File scripts/mobile-dev.ps1 -LaunchEmulator",
     "mobile:web": "powershell -ExecutionPolicy Bypass -File scripts/mobile-web.ps1",

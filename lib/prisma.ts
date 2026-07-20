@@ -44,3 +44,12 @@ export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
     return Reflect.get(getPrismaClient(), prop)
   },
 })
+
+/** يغلق اتصال Prisma الحالي — يُستخدم قبل نقل ملف قاعدة البيانات إلى مكان آخر. */
+export async function disconnectPrisma(): Promise<void> {
+  if (globalForPrisma.prisma) {
+    await globalForPrisma.prisma.$disconnect()
+    globalForPrisma.prisma = undefined
+    globalForPrisma.prismaDatabaseUrl = undefined
+  }
+}

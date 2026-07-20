@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { parseJsonColumn, stringifyJsonColumn } from "@/lib/json-column"
 
 export const SYSTEM_BACKUP_VERSION = 1
 export const SYSTEM_BACKUP_APP = "drosi" as const
@@ -164,9 +165,9 @@ export async function exportSystemBackup(): Promise<SystemBackup> {
       name: u.name,
       email: u.email,
       passwordHash: u.passwordHash,
-      lessons: u.lessons,
-      calendarEvents: u.calendarEvents,
-      aiLearningProfile: u.aiLearningProfile,
+      lessons: parseJsonColumn<unknown[]>(u.lessons, []),
+      calendarEvents: parseJsonColumn<unknown[]>(u.calendarEvents, []),
+      aiLearningProfile: parseJsonColumn<Record<string, unknown>>(u.aiLearningProfile, {}),
       geminiApiKeyEnc: u.geminiApiKeyEnc,
       geminiKeyHint: u.geminiKeyHint,
       geminiKeyUpdatedAt: u.geminiKeyUpdatedAt?.toISOString() ?? null,
@@ -182,7 +183,7 @@ export async function exportSystemBackup(): Promise<SystemBackup> {
       permission: s.permission,
       allowCopy: s.allowCopy,
       active: s.active,
-      scope: s.scope,
+      scope: parseJsonColumn<unknown | null>(s.scope, null),
       createdAt: s.createdAt.toISOString(),
     })),
     appPublicConfig: appPublicConfig
@@ -211,9 +212,9 @@ export async function importSystemBackup(backup: SystemBackup): Promise<SystemBa
           name: user.name,
           email: user.email,
           passwordHash: user.passwordHash,
-          lessons: user.lessons as object,
-          calendarEvents: user.calendarEvents as object,
-          aiLearningProfile: user.aiLearningProfile as object,
+          lessons: stringifyJsonColumn(user.lessons ?? []),
+          calendarEvents: stringifyJsonColumn(user.calendarEvents ?? []),
+          aiLearningProfile: stringifyJsonColumn(user.aiLearningProfile ?? {}),
           geminiApiKeyEnc: user.geminiApiKeyEnc,
           geminiKeyHint: user.geminiKeyHint,
           geminiKeyUpdatedAt: user.geminiKeyUpdatedAt
@@ -237,7 +238,7 @@ export async function importSystemBackup(backup: SystemBackup): Promise<SystemBa
           permission: share.permission,
           allowCopy: share.allowCopy,
           active: share.active,
-          scope: share.scope as object | undefined,
+          scope: share.scope != null ? stringifyJsonColumn(share.scope) : null,
           createdAt: new Date(share.createdAt),
         },
       })

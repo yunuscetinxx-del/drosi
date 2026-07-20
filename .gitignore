@@ -13,6 +13,9 @@ __v0_jsx-dev-runtime.ts
 # Legacy local JSON storage (no longer used by the app)
 data/
 
+# Local storage location pointer (machine-specific absolute path)
+storage.config.json
+
 # Android builds — install via USB, never commit APK
 *.apk
 public/releases/

@@ -9,6 +9,7 @@ import {
 } from "@/types/lesson"
 import { reviveLesson } from "@/lib/lessons-revive"
 import type { SharePermission, ShareScope } from "@/types/share"
+import { uploadImageDataUrl } from "@/lib/upload-client"
 
 const generateId = () => Math.random().toString(36).substring(2, 11)
 const SAVE_DEBOUNCE_MS = 700
@@ -144,6 +145,20 @@ export function useSharedLesson(token: string) {
     [patchLesson]
   )
 
+  const applyImageUrl = useCallback(
+    (lessonId: string, imageId: string, url: string) => {
+      patchLesson((lesson) =>
+        lesson.id === lessonId
+          ? {
+              ...lesson,
+              images: lesson.images.map((img) => (img.id === imageId ? { ...img, url } : img)),
+            }
+          : lesson
+      )
+    },
+    [patchLesson]
+  )
+
   const addImage = useCallback(
     (lessonId: string, imageUrl: string) => {
       const newImage: LessonImage = { id: generateId(), url: imageUrl, annotations: [] }
@@ -152,8 +167,15 @@ export function useSharedLesson(token: string) {
           ? { ...lesson, images: [...lesson.images, newImage], updatedAt: new Date() }
           : lesson
       )
+
+      if (imageUrl.startsWith("data:")) {
+        void (async () => {
+          const savedUrl = await uploadImageDataUrl(imageUrl)
+          if (savedUrl) applyImageUrl(lessonId, newImage.id, savedUrl)
+        })()
+      }
     },
-    [patchLesson]
+    [patchLesson, applyImageUrl]
   )
 
   const removeImage = useCallback(
