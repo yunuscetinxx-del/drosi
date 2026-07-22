@@ -116,6 +116,44 @@ export function ImageEditor({
     return () => window.removeEventListener("resize", updateViewport)
   }, [open])
 
+  useEffect(() => {
+    if (!open || readOnly) return
+
+    const handleShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (
+        target?.isContentEditable ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      ) {
+        return
+      }
+
+      const modes: Record<string, EditorMode> = {
+        "0": "view",
+        "1": "pin",
+        "2": "highlight",
+        "3": "annotate",
+      }
+      const nextMode = modes[event.key]
+      if (!nextMode) return
+
+      event.preventDefault()
+      setMode(nextMode)
+      setIsDrawing(false)
+      setCurrentRect(null)
+      setSelectedAnnotation(null)
+      setHoveredAnnotation(null)
+    }
+
+    window.addEventListener("keydown", handleShortcut)
+    return () => window.removeEventListener("keydown", handleShortcut)
+  }, [open, readOnly])
+
   // Load image and set dimensions
   useEffect(() => {
     if (!open || !image.url) return
@@ -509,6 +547,7 @@ export function ImageEditor({
                   size="sm"
                   onClick={() => setMode("view")}
                   className="gap-1.5"
+                  title={t("imageEditor.shortcutView")}
                 >
                   <Eye className="w-4 h-4" />
                   {t("imageEditor.modeView")}
@@ -520,6 +559,7 @@ export function ImageEditor({
                       size="sm"
                       onClick={() => setMode("highlight")}
                       className="gap-1.5"
+                      title={t("imageEditor.shortcutHighlight")}
                     >
                       <Highlighter className="w-4 h-4" />
                       {t("imageEditor.modeHighlight")}
@@ -529,6 +569,7 @@ export function ImageEditor({
                       size="sm"
                       onClick={() => setMode("annotate")}
                       className="gap-1.5"
+                      title={t("imageEditor.shortcutAnnotate")}
                     >
                       <MessageSquare className="w-4 h-4" />
                       {t("imageEditor.modeAnnotate")}
@@ -538,6 +579,7 @@ export function ImageEditor({
                       size="sm"
                       onClick={() => setMode("pin")}
                       className="gap-1.5"
+                      title={t("imageEditor.shortcutPin")}
                     >
                       <MapPin className="w-4 h-4" />
                       {t("imageEditor.modePin")}
