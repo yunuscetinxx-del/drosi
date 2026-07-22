@@ -14,12 +14,28 @@ export interface Lesson {
   lessonAnalyses?: LessonAnalysisEntry[]
   /** دردشات استفسار عن نقاط الدرس */
   lessonChatThreads?: LessonChatThread[]
+  /** ملاحظة تحليل طويلة مع روابط إلى علامات الصور */
+  aiImageNote?: AiImageNote
   images: LessonImage[]
   wordPages: WordPage[]
   mindMaps: MindMap[]
   mindMapFolders?: MindMapFolder[]
   createdAt: Date
   updatedAt: Date
+}
+
+export interface AiImageNote {
+  content: string
+  layout: "side" | "below"
+  links: AiImageNoteLink[]
+}
+
+export interface AiImageNoteLink {
+  id: string
+  start: number
+  end: number
+  imageId: string
+  annotationId: string
 }
 
 /** مجلد لتنظيم الخرائط داخل الدرس */
