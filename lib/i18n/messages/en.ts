@@ -78,7 +78,7 @@ export const messages: Messages = {
     rateLabel: "Speed",
     pitchLabel: "Pitch",
     testButton: "Test voice",
-    hint: "For a clearer voice on Windows: go to Settings ← Time & language ← Speech, install additional high-quality languages/voices, then reopen your browser.",
+    hint: "Your device currently only shows voices installed in the operating system — Windows usually ships just one older voice per language. For clearer, more voices (male/female, different dialects) for free: open the app in the Microsoft Edge browser (not another browser) with an internet connection — Edge automatically adds extra natural voices that appear directly in the list above with no further setup.",
   },
   app: {
     title: "Drosi",

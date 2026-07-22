@@ -78,7 +78,7 @@ export const messages: Messages = {
     rateLabel: "Geschwindigkeit",
     pitchLabel: "Tonhöhe",
     testButton: "Stimme testen",
-    hint: "Für eine klarere Stimme unter Windows: Einstellungen ← Zeit und Sprache ← Sprachausgabe, zusätzliche hochwertige Sprachen/Stimmen installieren und den Browser neu starten.",
+    hint: "Dein Gerät zeigt aktuell nur die im Betriebssystem installierten Stimmen — Windows bietet meist nur eine einzige, ältere Stimme pro Sprache. Für klarere, mehr Stimmen (männlich/weiblich, verschiedene Dialekte) kostenlos: öffne die App im Microsoft-Edge-Browser (nicht in einem anderen Browser) mit Internetverbindung — Edge fügt automatisch zusätzliche natürliche Stimmen hinzu, die direkt oben in der Liste erscheinen, ohne weitere Einrichtung.",
   },
   app: {
     title: "Drosi",
