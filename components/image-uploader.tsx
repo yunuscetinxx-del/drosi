@@ -37,12 +37,26 @@ export function ImageUploader({
   const [editingImageId, setEditingImageId] = useState<string | null>(null)
   const [analyzeImageId, setAnalyzeImageId] = useState<string | null>(null)
 
-  const editingImage = editingImageId
+  // نحتفظ بآخر نسخة معروفة من الصورة المفتوحة حالياً. هذا يمنع إغلاق نافذة التعديل/التحليل
+  // بشكل مفاجئ في حال حدث تحديث عابر لمصفوفة الصور (مثلاً أثناء الحفظ التلقائي) لم تحتوِ
+  // مؤقتاً على هذا المعرّف — بدل الاعتماد فقط على نتيجة .find() في كل رندر.
+  const lastEditingImageRef = useRef<LessonImage | null>(null)
+  const lastAnalyzeImageRef = useRef<LessonImage | null>(null)
+
+  const foundEditingImage = editingImageId
     ? images.find((img) => img.id === editingImageId) ?? null
     : null
+  if (foundEditingImage) lastEditingImageRef.current = foundEditingImage
+  const editingImage = editingImageId
+    ? foundEditingImage ?? lastEditingImageRef.current
+    : null
 
-  const analyzeImage = analyzeImageId
+  const foundAnalyzeImage = analyzeImageId
     ? images.find((img) => img.id === analyzeImageId) ?? null
+    : null
+  if (foundAnalyzeImage) lastAnalyzeImageRef.current = foundAnalyzeImage
+  const analyzeImage = analyzeImageId
+    ? foundAnalyzeImage ?? lastAnalyzeImageRef.current
     : null
 
   const handleFileChange = useCallback(

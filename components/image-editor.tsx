@@ -126,6 +126,10 @@ export function ImageEditor({
     img.src = image.url
   }, [open, image.url])
 
+  // ذاكرة تخزين مؤقت لعنصر الصورة المحمّل بالفعل — لتفادي إعادة تحميل الصورة (وما يسببه
+  // من "ومضة"/تحديث ملحوظ) في كل مرة تُضاف أو تُعدَّل ملاحظة/تظليل، طالما رابط الصورة نفسه لم يتغيّر.
+  const loadedImageRef = useRef<{ url: string; img: HTMLImageElement } | null>(null)
+
   // Draw canvas
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -134,9 +138,7 @@ export function ImageEditor({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const img = new window.Image()
-    img.crossOrigin = "anonymous"
-    img.onload = () => {
+    const render = (img: HTMLImageElement) => {
       // Set canvas size
       canvas.width = imgDimensions.width
       canvas.height = imgDimensions.height
@@ -182,6 +184,19 @@ export function ImageEditor({
         ctx.strokeRect(currentRect.x, currentRect.y, currentRect.w, currentRect.h)
         ctx.setLineDash([])
       }
+    }
+
+    const cached = loadedImageRef.current
+    if (cached && cached.url === image.url && cached.img.complete && cached.img.naturalWidth > 0) {
+      render(cached.img)
+      return
+    }
+
+    const img = new window.Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      loadedImageRef.current = { url: image.url, img }
+      render(img)
     }
     img.src = image.url
   }, [image.url, image.annotations, currentRect, selectedColor, imgDimensions])
