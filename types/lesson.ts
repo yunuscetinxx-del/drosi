@@ -34,6 +34,7 @@ export interface AiImageNoteLink {
   end: number
   imageId: string
   annotationId: string
+  color?: string
 }
 
 /** مجلد لتنظيم الخرائط داخل الدرس */
