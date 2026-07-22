@@ -26,9 +26,14 @@ import {
   speakText,
   stopSpeaking,
   type SpeechLocale,
+  type SpeechPrefs,
 } from "@/lib/text-to-speech"
 
 const AUTO_VOICE_VALUE = "__auto__"
+
+// يطابق القيم الافتراضية في lib/text-to-speech.ts — يُستخدم فقط للعرض الأولي
+// قبل قراءة التفضيلات الفعلية من localStorage بعد التركيب (تفادي اختلاف الترطيب).
+const DEFAULT_PREFS_FOR_SSR: SpeechPrefs = { rate: 1, pitch: 1, voiceURIByLocale: {} }
 
 const SAMPLE_TEXT: Record<SpeechLocale, string> = {
   "ar-SA": "مرحباً، هذا مثال على صوت القراءة.",
@@ -48,11 +53,14 @@ export function TtsSettingsPanel() {
   const [voicesByLocale, setVoicesByLocale] = useState<
     Record<SpeechLocale, SpeechSynthesisVoice[]>
   >({ "ar-SA": [], "de-DE": [], "en-US": [] })
-  const [prefs, setPrefsState] = useState(() => getSpeechPrefs())
+  // مهم: لا نقرأ localStorage في التهيئة الأولى (useState initializer) لتفادي
+  // اختلاف عرض الخادم عن العميل عند الترطيب (hydration) — نقرأها بعد التركيب فقط.
+  const [prefs, setPrefsState] = useState<SpeechPrefs>(DEFAULT_PREFS_FOR_SSR)
   const [testingLocale, setTestingLocale] = useState<SpeechLocale | null>(null)
 
   useEffect(() => {
     setSupported(isSpeechSupported())
+    setPrefsState(getSpeechPrefs())
     let cancelled = false
     void loadVoices().then(() => {
       if (cancelled) return
