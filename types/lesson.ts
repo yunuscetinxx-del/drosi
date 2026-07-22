@@ -14,8 +14,6 @@ export interface Lesson {
   lessonAnalyses?: LessonAnalysisEntry[]
   /** دردشات استفسار عن نقاط الدرس */
   lessonChatThreads?: LessonChatThread[]
-  /** ملاحظة تحليل طويلة مع روابط إلى علامات الصور */
-  aiImageNote?: AiImageNote
   images: LessonImage[]
   wordPages: WordPage[]
   mindMaps: MindMap[]
@@ -62,6 +60,8 @@ export interface LessonImage {
   url: string
   annotations: ImageAnnotation[]
   aiAnalysis?: ImageAIAnalysis
+  /** ملاحظة تحليل مرتبطة بعلامات هذه الصورة */
+  aiImageNote?: AiImageNote
 }
 
 export interface ImageAnnotation {

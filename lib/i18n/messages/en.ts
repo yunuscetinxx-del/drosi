@@ -549,6 +549,7 @@ export const messages: Messages = {
   },
   aiImageNotes: {
     title: "Image-linked notes",
+    open: "Open linked notes",
     hint: "Select text in the note, choose an image marker, then link them.",
     placeholder: "Write your detailed analysis note here...",
     marker: "Image marker",

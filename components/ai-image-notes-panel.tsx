@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { AiImageNote, ImageAnnotation, Lesson } from "@/types/lesson"
+import type { AiImageNote, ImageAnnotation, LessonImage } from "@/types/lesson"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -13,28 +13,29 @@ import { useTranslations } from "@/components/locale-provider"
 const EMPTY_NOTE: AiImageNote = { content: "", layout: "side", links: [] }
 
 interface AiImageNotesPanelProps {
-  lesson: Lesson
+  images: LessonImage[]
+  note?: AiImageNote
   readOnly?: boolean
   onChange: (note: AiImageNote) => void
 }
 
-export function AiImageNotesPanel({ lesson, readOnly = false, onChange }: AiImageNotesPanelProps) {
+export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, onChange }: AiImageNotesPanelProps) {
   const { t } = useTranslations()
-  const [note, setNote] = useState<AiImageNote>(lesson.aiImageNote ?? EMPTY_NOTE)
+  const [note, setNote] = useState<AiImageNote>(savedNote ?? EMPTY_NOTE)
   const [target, setTarget] = useState("")
   const [activeLinkId, setActiveLinkId] = useState<string | null>(null)
   const [imageDimensions, setImageDimensions] = useState<Record<string, { width: number; height: number }>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    setNote(lesson.aiImageNote ?? EMPTY_NOTE)
+    setNote(savedNote ?? EMPTY_NOTE)
     setTarget("")
     setActiveLinkId(null)
-  }, [lesson.id, lesson.aiImageNote])
+  }, [savedNote])
 
   const annotationTargets = useMemo(
     () =>
-      lesson.images.flatMap((image, imageIndex) =>
+      images.flatMap((image, imageIndex) =>
         image.annotations.map((annotation, annotationIndex) => ({
           value: `${image.id}:${annotation.id}`,
           label: `${t("aiImageNotes.image", { index: imageIndex + 1 })} - ${annotationLabel(annotation, annotationIndex + 1, t)}`,
@@ -42,7 +43,7 @@ export function AiImageNotesPanel({ lesson, readOnly = false, onChange }: AiImag
           annotation,
         }))
       ),
-    [lesson.images, t]
+    [images, t]
   )
 
   const activeLink = note.links.find((link) => link.id === activeLinkId) ?? null
@@ -200,7 +201,7 @@ function ImageMarkerPreview({
   onLoad,
   t,
 }: {
-  image: Lesson["images"][number]
+  image: LessonImage
   annotation: ImageAnnotation
   dimensions?: { width: number; height: number }
   onLoad: (dimensions: { width: number; height: number }) => void

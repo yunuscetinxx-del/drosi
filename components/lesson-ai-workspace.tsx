@@ -35,7 +35,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useTranslations } from "@/components/locale-provider"
-import { AiImageNotesPanel } from "@/components/ai-image-notes-panel"
 import { cn } from "@/lib/utils"
 import {
   BookOpen,
@@ -561,12 +560,6 @@ export function LessonAiWorkspace({
           </div>
         </div>
       </div>
-
-      <AiImageNotesPanel
-        lesson={lesson}
-        readOnly={readOnly}
-        onChange={(aiImageNote) => onUpdateLesson({ aiImageNote })}
-      />
 
       <AlertDialog open={mindMapPromptOpen} onOpenChange={setMindMapPromptOpen}>
         <AlertDialogContent>

@@ -549,6 +549,7 @@ export const messages: Messages = {
   },
   aiImageNotes: {
     title: "Bildverknüpfte Notizen",
+    open: "Verknüpfte Notizen öffnen",
     hint: "Text in der Notiz markieren, eine Bildmarkierung wählen und beides verknüpfen.",
     placeholder: "Schreibe hier deine ausführliche Analyse-Notiz...",
     marker: "Bildmarkierung",

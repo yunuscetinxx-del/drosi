@@ -47,6 +47,7 @@ export default function LessonsPage() {
     updateImageAnnotation,
     removeImageAnnotation,
     setImageAIAnalysis,
+    setAiImageNote,
   } = useLessons()
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -307,6 +308,7 @@ export default function LessonsPage() {
                   onUpdateImageAnnotation={updateImageAnnotation}
                   onRemoveImageAnnotation={removeImageAnnotation}
                   onSetImageAIAnalysis={setImageAIAnalysis}
+                  onSetAiImageNote={setAiImageNote}
                   onClose={() => setSelectedLesson(null)}
                 />
               </div>

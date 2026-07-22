@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Lesson, ImageAnnotation, ImageAIAnalysis } from "@/types/lesson"
+import { AiImageNote, Lesson, ImageAnnotation, ImageAIAnalysis } from "@/types/lesson"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,6 +47,7 @@ interface LessonDetailProps {
   onUpdateImageAnnotation: (lessonId: string, imageId: string, annotationId: string, updates: Partial<ImageAnnotation>) => void
   onRemoveImageAnnotation: (lessonId: string, imageId: string, annotationId: string) => void
   onSetImageAIAnalysis: (lessonId: string, imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
+  onSetAiImageNote: (lessonId: string, imageId: string, note: AiImageNote) => void
   onClose: () => void
   readOnly?: boolean
 }
@@ -60,6 +61,7 @@ export function LessonDetail({
   onUpdateImageAnnotation,
   onRemoveImageAnnotation,
   onSetImageAIAnalysis,
+  onSetAiImageNote,
   onClose,
   readOnly = false,
 }: LessonDetailProps) {
@@ -414,6 +416,7 @@ export function LessonDetail({
                   onSetAIAnalysis={(imageId, analysis) =>
                     onSetImageAIAnalysis(lesson.id, imageId, analysis)
                   }
+                  onSetAiImageNote={(imageId, note) => onSetAiImageNote(lesson.id, imageId, note)}
                   onAddToNotes={readOnly ? () => {} : handleAddToNotes}
                 />
               </CardContent>

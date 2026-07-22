@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useState } from "react"
-import type { ImageAIAnalysis, ImageAnnotation, LessonImage } from "@/types/lesson"
+import type { AiImageNote, ImageAIAnalysis, ImageAnnotation, LessonImage } from "@/types/lesson"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ImagePlus, X, Upload, Edit3, Sparkles, MessageSquare } from "lucide-react"
@@ -18,6 +18,7 @@ interface ImageUploaderProps {
   onUpdateAnnotation: (imageId: string, annotationId: string, updates: Partial<ImageAnnotation>) => void
   onRemoveAnnotation: (imageId: string, annotationId: string) => void
   onSetAIAnalysis: (imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
+  onSetAiImageNote: (imageId: string, note: AiImageNote) => void
   onAddToNotes: (text: string) => void
 }
 
@@ -30,6 +31,7 @@ export function ImageUploader({
   onUpdateAnnotation,
   onRemoveAnnotation,
   onSetAIAnalysis,
+  onSetAiImageNote,
   onAddToNotes,
 }: ImageUploaderProps) {
   const { t } = useTranslations()
@@ -235,6 +237,7 @@ export function ImageUploader({
             onRemoveAnnotation(editingImage.id, annotationId)
           }
           onSetAIAnalysis={(analysis) => onSetAIAnalysis(editingImage.id, analysis)}
+          onSetAiImageNote={(note) => onSetAiImageNote(editingImage.id, note)}
           onAddToNotes={onAddToNotes}
         />
       )}

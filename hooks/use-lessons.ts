@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import {
   Lesson,
   LessonImage,
+  AiImageNote,
   ImageAnnotation,
   ImageAIAnalysis,
 } from "@/types/lesson"
@@ -393,6 +394,27 @@ export function useLessons() {
     []
   )
 
+  const setAiImageNote = useCallback(
+    (lessonId: string, imageId: string, aiImageNote: AiImageNote) => {
+      const updateImage = (image: LessonImage) =>
+        image.id === imageId ? { ...image, aiImageNote } : image
+
+      setLessons((prev) =>
+        prev.map((lesson) =>
+          lesson.id === lessonId
+            ? { ...lesson, images: lesson.images.map(updateImage), updatedAt: new Date() }
+            : lesson
+        )
+      )
+      setSelectedLesson((prev) =>
+        prev?.id === lessonId
+          ? { ...prev, images: prev.images.map(updateImage), updatedAt: new Date() }
+          : prev
+      )
+    },
+    []
+  )
+
   return {
     lessons,
     selectedLesson,
@@ -407,5 +429,6 @@ export function useLessons() {
     updateImageAnnotation,
     removeImageAnnotation,
     setImageAIAnalysis,
+    setAiImageNote,
   }
 }
