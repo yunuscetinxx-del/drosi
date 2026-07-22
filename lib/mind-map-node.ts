@@ -56,9 +56,13 @@ export function getMindMapNodeLayout(node: MindMapNode): MindMapNodeLayout {
 
   let noteH = 0
   if (note) {
-    const charsPerLine = Math.max(12, Math.floor(bodyW / 7))
-    const lines = Math.min(4, Math.max(1, Math.ceil(note.length / charsPerLine)))
-    noteH = NOTE_GAP + NOTE_PAD_Y * 2 + lines * NOTE_LINE_H
+    // نقدّر عدد الأسطر بشكل متحفّظ (عدد أحرف أقل بقليل لكل سطر) حتى لا يُقصّ أي نص طويل،
+    // ونحترم فواصل الأسطر اليدوية التي كتبها المستخدم في النص.
+    const charsPerLine = Math.max(10, Math.floor(bodyW / 6))
+    const lines = note
+      .split("\n")
+      .reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
+    noteH = NOTE_GAP + NOTE_PAD_Y * 2 + Math.max(1, lines) * NOTE_LINE_H
   }
 
   return {

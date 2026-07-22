@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { ReadAloudButton } from "@/components/ui/read-aloud-button"
 import {
   Check,
   ClipboardPaste,
@@ -44,47 +45,50 @@ import {
   Unlink,
 } from "lucide-react"
 
+export type MindMapMenuAnchorRect = { left: number; top: number; right: number; bottom: number }
+
 export type MindMapContextMenuState = {
   nodeId?: string
   clientX: number
   clientY: number
   worldX?: number
   worldY?: number
+  anchorRect: MindMapMenuAnchorRect
 } | null
 
 const MENU_VIEWPORT_PAD = 8
+const MENU_ANCHOR_GAP = 10
 
-/** يضبط موضع القائمة داخل الشاشة — يُقلب للأعلى إن لم يكفِ المساحة تحت المؤشر. */
+/**
+ * يضبط موضع القائمة بالنسبة للعقدة/نقطة النقر (anchor): تظهر مباشرة فوقها ومتمركزة
+ * أفقياً عليها، وتنقلب للأسفل إن لم تكفِ المساحة فوقها، مع تثبيتها ضمن حدود الشاشة
+ * (السكرول الداخلي في القائمة يتكفل بأي محتوى إضافي لا يتسع).
+ */
 function computeMenuPosition(
-  clientX: number,
-  clientY: number,
+  anchor: MindMapMenuAnchorRect,
   width: number,
   height: number
 ): { left: number; top: number } {
   if (typeof window === "undefined") {
-    return { left: clientX, top: clientY }
+    return { left: anchor.left, top: anchor.top }
   }
   const vw = window.innerWidth
   const vh = window.innerHeight
   const pad = MENU_VIEWPORT_PAD
+  const gap = MENU_ANCHOR_GAP
 
-  let left = clientX
-  if (left + width > vw - pad) {
-    left = Math.max(pad, vw - width - pad)
-  }
-  if (left < pad) left = pad
+  const anchorCenterX = (anchor.left + anchor.right) / 2
+  let left = anchorCenterX - width / 2
+  left = Math.min(left, vw - width - pad)
+  left = Math.max(left, pad)
 
-  let top = clientY
-  const overflowBottom = top + height > vh - pad
-  if (overflowBottom) {
-    const above = clientY - height
-    if (above >= pad) {
-      top = above
-    } else {
-      top = Math.max(pad, vh - height - pad)
-    }
-  }
-  if (top < pad) top = pad
+  const spaceAbove = anchor.top - pad
+  const spaceBelow = vh - anchor.bottom - pad
+  const fitsAbove = spaceAbove >= height + gap
+  const preferAbove = fitsAbove || spaceAbove >= spaceBelow
+
+  let top = preferAbove ? anchor.top - gap - height : anchor.bottom + gap
+  top = Math.max(pad, Math.min(top, vh - height - pad))
 
   return { left, top }
 }
@@ -92,6 +96,7 @@ function computeMenuPosition(
 interface MindMapNodeMenuProps {
   menu: MindMapContextMenuState
   node: MindMapNode | null
+  nodes: MindMapNode[]
   allMaps: MindMap[]
   folders: MindMapFolder[]
   currentMapId: string
@@ -99,6 +104,8 @@ interface MindMapNodeMenuProps {
   wordPages?: WordPage[]
   keyPoints?: string[]
   expandingNodeId?: string | null
+  noteEditorNodeId?: string | null
+  onNoteEditorNodeIdChange?: (nodeId: string | null) => void
   onClose: () => void
   onUpdateNode: (nodeId: string, updates: Partial<MindMapNode>) => void
   onExpandNodeAi?: (nodeId: string) => void | Promise<void>
@@ -161,6 +168,7 @@ function MenuItem({
 export function MindMapNodeMenu({
   menu,
   node,
+  nodes,
   allMaps,
   folders,
   currentMapId,
@@ -168,6 +176,8 @@ export function MindMapNodeMenu({
   wordPages = [],
   keyPoints = [],
   expandingNodeId = null,
+  noteEditorNodeId = null,
+  onNoteEditorNodeIdChange,
   onClose,
   onUpdateNode,
   onExpandNodeAi,
@@ -187,7 +197,6 @@ export function MindMapNodeMenu({
   canPaste = false,
 }: MindMapNodeMenuProps) {
   const { t } = useTranslations()
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false)
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [lessonLinkOpen, setLessonLinkOpen] = useState(false)
   const [noteDraft, setNoteDraft] = useState("")
@@ -195,6 +204,10 @@ export function MindMapNodeMenu({
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number } | null>(
     null
   )
+
+  const noteEditorNode = noteEditorNodeId
+    ? (nodes.find((n) => n.id === noteEditorNodeId) ?? null)
+    : null
 
   const lessonLinkTarget = (): MindMapLessonLinkTarget => {
     if (node?.linkedImageId) return { type: "image", id: node.linkedImageId }
@@ -231,8 +244,8 @@ export function MindMapNodeMenu({
   }, [menu, onClose])
 
   useEffect(() => {
-    if (noteDialogOpen && node) setNoteDraft(node.note ?? "")
-  }, [noteDialogOpen, node])
+    if (noteEditorNode) setNoteDraft(noteEditorNode.note ?? "")
+  }, [noteEditorNode])
 
   useLayoutEffect(() => {
     if (!menu) {
@@ -241,32 +254,34 @@ export function MindMapNodeMenu({
     }
     const el = menuRef.current
     if (!el) {
-      setMenuPosition({ left: menu.clientX, top: menu.clientY })
+      setMenuPosition({ left: menu.anchorRect.left, top: menu.anchorRect.top })
       return
     }
     const { width, height } = el.getBoundingClientRect()
-    setMenuPosition(computeMenuPosition(menu.clientX, menu.clientY, width, height))
+    setMenuPosition(computeMenuPosition(menu.anchorRect, width, height))
   }, [menu, node?.id, expandingNodeId])
 
-  if (!menu) return null
-
-  const isCanvasMenu = !menu.nodeId
-  if (!isCanvasMenu && !node) return null
+  const isCanvasMenu = menu ? !menu.nodeId : false
+  const showContextMenu = Boolean(menu) && (isCanvasMenu || Boolean(node))
 
   const role = node?.role ?? (node?.parentId ? "branch" : "main")
   const linkedTitle =
     node?.linkedMapId != null ? allMaps.find((m) => m.id === node.linkedMapId)?.title : null
 
-  const menuStyle: React.CSSProperties = {
-    left: menuPosition?.left ?? menu.clientX,
-    top: menuPosition?.top ?? menu.clientY,
-    visibility: menuPosition ? "visible" : "hidden",
-  }
+  const menuStyle: React.CSSProperties = menu
+    ? {
+        left: menuPosition?.left ?? menu.anchorRect.left,
+        top: menuPosition?.top ?? menu.anchorRect.top,
+        visibility: menuPosition ? "visible" : "hidden",
+      }
+    : {}
 
   return (
     <>
-      <div className="fixed inset-0 z-[60]" onClick={onClose} onContextMenu={(e) => e.preventDefault()} />
-      <div
+      {menu && showContextMenu && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={onClose} onContextMenu={(e) => e.preventDefault()} />
+          <div
         ref={menuRef}
         className="fixed z-[70] min-w-[210px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg"
         style={menuStyle}
@@ -375,6 +390,7 @@ export function MindMapNodeMenu({
                 icon={<Star className="h-4 w-4 shrink-0 text-amber-500" />}
                 label={t("mindMap.setAsMain")}
                 active={role === "main"}
+                shortcut="1"
                 onClick={() => {
                   onUpdateNode(node.id, { role: "main" })
                   onClose()
@@ -384,6 +400,7 @@ export function MindMapNodeMenu({
                 icon={<GitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />}
                 label={t("mindMap.setAsBranch")}
                 active={role === "branch"}
+                shortcut="2"
                 onClick={() => {
                   onUpdateNode(node.id, { role: "branch" })
                   onClose()
@@ -406,9 +423,10 @@ export function MindMapNodeMenu({
               <MenuItem
                 icon={<StickyNote className="h-4 w-4 shrink-0" />}
                 label={node.note?.trim() ? t("mindMap.editNote") : t("mindMap.addNote")}
+                shortcut="N"
                 onClick={() => {
                   setNoteDraft(node.note ?? "")
-                  setNoteDialogOpen(true)
+                  onNoteEditorNodeIdChange?.(node.id)
                 }}
               />
               {onStartConnect && (
@@ -425,6 +443,7 @@ export function MindMapNodeMenu({
                 <MenuItem
                   icon={<Unlink className="h-4 w-4 shrink-0 text-orange-500" />}
                   label={t("mindMap.unlinkFromParent")}
+                  shortcut="U"
                   onClick={() => {
                     onUnlinkParent(node.id)
                     onClose()
@@ -500,6 +519,7 @@ export function MindMapNodeMenu({
                 <MenuItem
                   icon={<Copy className="h-4 w-4 shrink-0" />}
                   label={t("mindMap.duplicateBranch")}
+                  shortcut="Ctrl+D"
                   onClick={() => {
                     onDuplicateSubtree(node.id)
                     onClose()
@@ -529,15 +549,25 @@ export function MindMapNodeMenu({
           )
         )}
       </div>
+        </>
+      )}
 
-      {node && (
-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+      {noteEditorNode && (
+      <Dialog
+        open
+        onOpenChange={(open) => {
+          if (!open) onNoteEditorNodeIdChange?.(null)
+        }}
+      >
         <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>{t("mindMap.noteTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="mindmap-node-note">{t("mindMap.noteLabel")}</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="mindmap-node-note">{t("mindMap.noteLabel")}</Label>
+              <ReadAloudButton text={noteDraft} label={t("mindMap.readNoteAloud")} />
+            </div>
             <Textarea
               id="mindmap-node-note"
               value={noteDraft}
@@ -551,8 +581,8 @@ export function MindMapNodeMenu({
               type="button"
               variant="outline"
               onClick={() => {
-                onUpdateNode(node.id, { note: "" })
-                setNoteDialogOpen(false)
+                onUpdateNode(noteEditorNode.id, { note: "" })
+                onNoteEditorNodeIdChange?.(null)
                 onClose()
               }}
             >
@@ -561,8 +591,8 @@ export function MindMapNodeMenu({
             <Button
               type="button"
               onClick={() => {
-                onUpdateNode(node.id, { note: noteDraft.trim() })
-                setNoteDialogOpen(false)
+                onUpdateNode(noteEditorNode.id, { note: noteDraft.trim() })
+                onNoteEditorNodeIdChange?.(null)
                 onClose()
               }}
             >

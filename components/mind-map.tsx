@@ -28,6 +28,7 @@ import {
   mindMapNodeOutboundArrow,
 } from "@/lib/mind-map-node"
 import { MindMapNodeMenu, type MindMapContextMenuState } from "@/components/mind-map-node-menu"
+import { speakText, stopSpeaking } from "@/lib/text-to-speech"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -297,7 +298,9 @@ export function MindMap({
   const [activeDragIds, setActiveDragIds] = useState<string[]>([])
   const [contextMenu, setContextMenu] = useState<MindMapContextMenuState>(null)
   const [clipboardCount, setClipboardCount] = useState(getMindMapClipboardCount)
-
+  const [noteEditorNodeId, setNoteEditorNodeId] = useState<string | null>(null)
+  const [speakingNodeId, setSpeakingNodeId] = useState<string | null>(null)
+  const [speakingNoteNodeId, setSpeakingNoteNodeId] = useState<string | null>(null)
   const primarySelectedId =
     selectedNodeIds.size === 1 ? [...selectedNodeIds][0] ?? null : null
 
@@ -638,6 +641,28 @@ export function MindMap({
       y: ((clientY - rect.top) / rect.height) * vb.h + vb.y,
     }
   }, [])
+
+  /** يحوّل مستطيلاً بإحداثيات العالم (مثل حدود عقدة) إلى مستطيل بإحداثيات الشاشة (viewport) — عكس svgToWorld. */
+  const worldRectToClientRect = useCallback(
+    (rect: { x: number; y: number; w: number; h: number }) => {
+      const svg = svgRef.current
+      if (!svg) {
+        return { left: 0, top: 0, right: 0, bottom: 0 }
+      }
+      const svgRect = svg.getBoundingClientRect()
+      const scaleX = svgRect.width / viewBox.w
+      const scaleY = svgRect.height / viewBox.h
+      const left = svgRect.left + (rect.x - viewBox.x) * scaleX
+      const top = svgRect.top + (rect.y - viewBox.y) * scaleY
+      return {
+        left,
+        top,
+        right: left + rect.w * scaleX,
+        bottom: top + rect.h * scaleY,
+      }
+    },
+    [viewBox]
+  )
 
   const flushPanMove = useCallback(() => {
     panMoveRafRef.current = null
@@ -1076,9 +1101,13 @@ export function MindMap({
       e.stopPropagation()
       if (readonly) return
       setSelectedNodeIds(new Set([nodeId]))
-      setContextMenu({ nodeId, clientX: e.clientX, clientY: e.clientY })
+      const targetNode = nodes.find((n) => n.id === nodeId)
+      const anchorRect = targetNode
+        ? worldRectToClientRect(getNodeWorldBounds(targetNode))
+        : { left: e.clientX, top: e.clientY, right: e.clientX, bottom: e.clientY }
+      setContextMenu({ nodeId, clientX: e.clientX, clientY: e.clientY, anchorRect })
     },
-    [readonly]
+    [readonly, nodes, worldRectToClientRect]
   )
 
   const handleCanvasContextMenu = useCallback(
@@ -1091,9 +1120,42 @@ export function MindMap({
         clientY: e.clientY,
         worldX: world.x,
         worldY: world.y,
+        anchorRect: { left: e.clientX, top: e.clientY, right: e.clientX, bottom: e.clientY },
       })
     },
     [readonly, svgToWorld]
+  )
+
+  /** يقرأ نص العقدة صوتياً (أو يوقف القراءة إن كانت جارية لهذه العقدة). */
+  const handleToggleSpeakNode = useCallback(
+    (e: React.MouseEvent, node: MindMapNode) => {
+      e.stopPropagation()
+      if (speakingNodeId === node.id) {
+        stopSpeaking()
+        setSpeakingNodeId(null)
+        return
+      }
+      setSpeakingNodeId(node.id)
+      speakText(node.text, () => setSpeakingNodeId((cur) => (cur === node.id ? null : cur)))
+    },
+    [speakingNodeId]
+  )
+
+  /** يقرأ نص ملاحظة العقدة صوتياً (أو يوقف القراءة إن كانت جارية لهذه الملاحظة). */
+  const handleToggleSpeakNote = useCallback(
+    (e: React.MouseEvent, node: MindMapNode) => {
+      e.stopPropagation()
+      const note = node.note?.trim() ?? ""
+      if (!note) return
+      if (speakingNoteNodeId === node.id) {
+        stopSpeaking()
+        setSpeakingNoteNodeId(null)
+        return
+      }
+      setSpeakingNoteNodeId(node.id)
+      speakText(note, () => setSpeakingNoteNodeId((cur) => (cur === node.id ? null : cur)))
+    },
+    [speakingNoteNodeId]
   )
 
   // Bezier edge path
@@ -1189,6 +1251,14 @@ export function MindMap({
         return
       }
 
+      if (mod && e.code === "KeyD") {
+        if (primarySelectedId && onDuplicateSubtree) {
+          onDuplicateSubtree(primarySelectedId)
+          e.preventDefault()
+        }
+        return
+      }
+
       if (mod || e.altKey) return
 
       const t = e.target as HTMLElement
@@ -1220,6 +1290,33 @@ export function MindMap({
         return
       }
 
+      if (e.code === "KeyN" && primarySelectedId) {
+        setNoteEditorNodeId(primarySelectedId)
+        e.preventDefault()
+        return
+      }
+
+      if (e.code === "Digit1" && primarySelectedId) {
+        onUpdateNode(primarySelectedId, { role: "main" })
+        e.preventDefault()
+        return
+      }
+
+      if (e.code === "Digit2" && primarySelectedId) {
+        onUpdateNode(primarySelectedId, { role: "branch" })
+        e.preventDefault()
+        return
+      }
+
+      if (e.code === "KeyU" && primarySelectedId) {
+        const selectedNode = nodes.find((n) => n.id === primarySelectedId)
+        if (selectedNode?.parentId) {
+          onUpdateNode(primarySelectedId, { parentId: null })
+          e.preventDefault()
+        }
+        return
+      }
+
       if (e.code === "Enter" && primarySelectedId) {
         handleAddSiblingNode(primarySelectedId)
         e.preventDefault()
@@ -1237,6 +1334,8 @@ export function MindMap({
       primarySelectedId,
       nodes,
       onDeleteNode,
+      onUpdateNode,
+      onDuplicateSubtree,
       applyCanvasTool,
       selectedNodeIds,
       handleAddSiblingNode,
@@ -1638,8 +1737,10 @@ export function MindMap({
                 }}
               >
                 <rect
-                  width={bodyW}
-                  height={totalH}
+                  x={-22}
+                  y={-52}
+                  width={bodyW + 50}
+                  height={totalH + 77}
                   fill="transparent"
                   className="pointer-events-all"
                 />
@@ -1786,10 +1887,44 @@ export function MindMap({
                       strokeOpacity={0.35}
                     />
                     <foreignObject x={0} y={0} width={bodyW} height={noteH - 6}>
-                      <div className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground break-words line-clamp-4">
+                      <div className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground break-words whitespace-pre-wrap">
                         {noteText}
                       </div>
                     </foreignObject>
+                    {isHovered && (
+                      <g
+                        transform={`translate(${bodyW + 14}, ${(noteH - 6) / 2})`}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => handleToggleSpeakNote(e, node)}
+                        className="cursor-pointer"
+                      >
+                        <title>{t("mindMap.readNoteAloud")}</title>
+                        <circle r="9" fill="#0ea5e9" stroke="var(--background)" strokeWidth="1.5" />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fill="white"
+                          fontSize={speakingNoteNodeId === node.id ? 8 : 9}
+                        >
+                          {speakingNoteNodeId === node.id ? "■" : "🔊"}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                )}
+
+                {isHovered && (
+                  <g
+                    transform="translate(-10, -10)"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => handleToggleSpeakNode(e, node)}
+                    className="cursor-pointer"
+                  >
+                    <title>{t("mindMap.readNodeAloud")}</title>
+                    <circle r="9" fill="#0ea5e9" stroke="var(--background)" strokeWidth="1.5" />
+                    <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={speakingNodeId === node.id ? 8 : 9}>
+                      {speakingNodeId === node.id ? "■" : "🔊"}
+                    </text>
                   </g>
                 )}
 
@@ -1979,6 +2114,7 @@ export function MindMap({
             ? (nodes.find((n) => n.id === contextMenu.nodeId) ?? null)
             : null
         }
+        nodes={nodes}
         allMaps={allMaps}
         folders={folders}
         currentMapId={currentMapId}
@@ -1986,6 +2122,8 @@ export function MindMap({
         wordPages={wordPages}
         keyPoints={keyPoints}
         expandingNodeId={expandingNodeId}
+        noteEditorNodeId={noteEditorNodeId}
+        onNoteEditorNodeIdChange={setNoteEditorNodeId}
         onClose={() => setContextMenu(null)}
         onUpdateNode={onUpdateNode}
         onExpandNodeAi={onExpandNodeAi}
