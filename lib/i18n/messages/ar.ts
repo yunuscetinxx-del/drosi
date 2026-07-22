@@ -498,6 +498,7 @@ export const messages = {
     arrow: "سهم {index}",
     highlightNote: "ملاحظة التظليل",
     noNoteOnHighlight: "لا توجد ملاحظة على هذا التظليل",
+    noteDeleteHint: "انقر للتحديد ثم اضغط Delete للحذف",
     aiAnalysis: "تحليل بالذكاء الاصطناعي",
     analyzing: "جاري التحليل...",
     analyzeImage: "تحليل الصورة",

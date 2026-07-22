@@ -131,7 +131,12 @@ export function ImageEditor({
   const [isDrawing, setIsDrawing] = useState(false)
   const [drawStart, setDrawStart] = useState({ x: 0, y: 0 })
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
-  const [selectedAnnotation, setSelectedAnnotation] = useState<ImageAnnotation | null>(null)
+  const [selectedAnnotation, setSelectedAnnotationState] = useState<ImageAnnotation | null>(null)
+  const selectedAnnotationRef = useRef<ImageAnnotation | null>(null)
+  const selectAnnotation = (annotation: ImageAnnotation | null) => {
+    selectedAnnotationRef.current = annotation
+    setSelectedAnnotationState(annotation)
+  }
   const [hoveredAnnotation, setHoveredAnnotation] = useState<ImageAnnotation | null>(null)
   const [noteText, setNoteText] = useState("")
   const [showAllNotes, setShowAllNotes] = useState(false)
@@ -177,6 +182,19 @@ export function ImageEditor({
         return
       }
 
+      if (
+        event.key === "Delete" &&
+        selectedAnnotationRef.current &&
+        selectedAnnotationRef.current.id !== "temp"
+      ) {
+        event.preventDefault()
+        onRemoveAnnotation(selectedAnnotationRef.current.id)
+        selectAnnotation(null)
+        setHoveredAnnotation(null)
+        setNoteText("")
+        return
+      }
+
       const modes: Record<string, EditorMode> = {
         "0": "view",
         "1": "pin",
@@ -191,13 +209,13 @@ export function ImageEditor({
       setMode(nextMode)
       setIsDrawing(false)
       setCurrentRect(null)
-      setSelectedAnnotation(null)
+      selectAnnotation(null)
       setHoveredAnnotation(null)
     }
 
-    window.addEventListener("keydown", handleShortcut)
-    return () => window.removeEventListener("keydown", handleShortcut)
-  }, [open, readOnly])
+    window.addEventListener("keydown", handleShortcut, true)
+    return () => window.removeEventListener("keydown", handleShortcut, true)
+  }, [open, readOnly, onRemoveAnnotation])
 
   // Load image and set dimensions
   useEffect(() => {
@@ -395,13 +413,13 @@ export function ImageEditor({
       const coords = getCanvasCoords(e)
       const clicked = findAnnotationAt(coords)
       if (clicked) {
-        setSelectedAnnotation(clicked)
+        selectAnnotation(clicked)
         setNoteText(clicked.note)
         if (!showAllNotes) {
           setHoveredAnnotation(clicked)
         }
       } else {
-        setSelectedAnnotation(null)
+        selectAnnotation(null)
         setHoveredAnnotation(null)
       }
       return
@@ -411,7 +429,7 @@ export function ImageEditor({
 
     if (mode === "pin") {
       const coords = getCanvasCoords(e)
-      setSelectedAnnotation({
+      selectAnnotation({
         id: "temp",
         kind: "pin",
         x: coords.x - 10,
@@ -476,7 +494,7 @@ export function ImageEditor({
     if (isValidSelection) {
       if (mode === "annotate" || mode === "arrow") {
         // Show note input
-        setSelectedAnnotation({
+        selectAnnotation({
           id: "temp",
           kind: mode === "arrow" ? "arrow" : undefined,
           x: currentRect.x,
@@ -522,7 +540,7 @@ export function ImageEditor({
       onUpdateAnnotation(selectedAnnotation.id, { note: noteText })
     }
 
-    setSelectedAnnotation(null)
+    selectAnnotation(null)
     setNoteText("")
     setHoveredAnnotation(null)
     setMode("view")
@@ -616,13 +634,19 @@ export function ImageEditor({
     return (
       <div
         key={annotation.id}
-        className="absolute max-w-[11rem] -translate-x-1/2 -translate-y-full rounded-md border-2 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-md backdrop-blur-sm pointer-events-none animate-in fade-in-0 zoom-in-95 duration-150"
+        className="absolute max-w-[11rem] -translate-x-1/2 -translate-y-full cursor-pointer rounded-md border-2 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-md backdrop-blur-sm animate-in fade-in-0 zoom-in-95 duration-150"
         style={{
           left: centerX,
           top: topY - 6,
           borderColor: colorObj.border,
           zIndex,
         }}
+        onClick={() => {
+          selectAnnotation(annotation)
+          setNoteText(annotation.note)
+          setHoveredAnnotation(annotation)
+        }}
+        title={t("imageEditor.noteDeleteHint")}
       >
         <div className="mb-1 flex items-center gap-1.5">
           <div
@@ -843,7 +867,7 @@ export function ImageEditor({
                         onChange={(e) => setNoteText(e.target.value)}
                         placeholder={t("imageEditor.notePlaceholder")}
                         rows={3}
-                        autoFocus
+                        autoFocus={selectedAnnotation.id === "temp"}
                       />
                       <div className="flex gap-2">
                         <Button size="sm" onClick={handleSaveNote} className="flex-1">
@@ -867,7 +891,7 @@ export function ImageEditor({
                           className="w-full"
                           onClick={() => {
                             onRemoveAnnotation(selectedAnnotation.id)
-                            setSelectedAnnotation(null)
+                            selectAnnotation(null)
                             setHoveredAnnotation(null)
                           }}
                         >
@@ -905,7 +929,7 @@ export function ImageEditor({
                                 : "border-border hover:bg-secondary/50"
                             }`}
                             onClick={() => {
-                              setSelectedAnnotation(annotation)
+                              selectAnnotation(annotation)
                               setNoteText(annotation.note)
                               setHoveredAnnotation(annotation)
                             }}

@@ -500,6 +500,7 @@ export const messages: Messages = {
     arrow: "Arrow {index}",
     highlightNote: "Highlight note",
     noNoteOnHighlight: "No note on this highlight",
+    noteDeleteHint: "Click to select, then press Delete to remove",
     aiAnalysis: "AI analysis",
     analyzing: "Analyzing...",
     analyzeImage: "Analyze image",

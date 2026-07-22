@@ -500,6 +500,7 @@ export const messages: Messages = {
     arrow: "Pfeil {index}",
     highlightNote: "Markierungsnotiz",
     noNoteOnHighlight: "Keine Notiz für diese Markierung",
+    noteDeleteHint: "Zum Auswählen klicken, dann Entf zum Löschen drücken",
     aiAnalysis: "KI-Analyse",
     analyzing: "Analyse läuft...",
     analyzeImage: "Bild analysieren",
