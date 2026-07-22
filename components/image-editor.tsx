@@ -594,6 +594,11 @@ export function ImageEditor({
     const placed: { left: number; right: number; top: number; bottom: number }[] = []
 
     for (const label of labels) {
+      if (label.annotation.kind === "pin") {
+        label.finalTop = label.topY
+        continue
+      }
+
       let top = label.topY - 8
 
       for (let attempt = 0; attempt < 24; attempt++) {
