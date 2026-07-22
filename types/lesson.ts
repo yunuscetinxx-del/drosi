@@ -50,7 +50,7 @@ export interface LessonImage {
 
 export interface ImageAnnotation {
   id: string
-  kind?: "highlight" | "pin"
+  kind?: "highlight" | "pin" | "arrow"
   x: number
   y: number
   width: number

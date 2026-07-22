@@ -35,6 +35,7 @@ import {
   StickyNote,
   Tags,
   MapPin,
+  ArrowUpRight,
 } from "lucide-react"
 import { ImageAnalysisResults, formatAnalysisForNotes } from "@/components/image-analysis-results"
 import { ImageAiAnalyzeDialog } from "@/components/image-ai-analyze-dialog"
@@ -47,6 +48,11 @@ const HIGHLIGHT_COLOR_DEFS = [
   { key: "pink" as const, value: "#fbcfe8", border: "#ec4899" },
   { key: "orange" as const, value: "#fed7aa", border: "#f97316" },
   { key: "purple" as const, value: "#ddd6fe", border: "#8b5cf6" },
+  { key: "red" as const, value: "#fecaca", border: "#ef4444" },
+  { key: "teal" as const, value: "#ccfbf1", border: "#14b8a6" },
+  { key: "cyan" as const, value: "#cffafe", border: "#06b6d4" },
+  { key: "lime" as const, value: "#d9f99d", border: "#84cc16" },
+  { key: "indigo" as const, value: "#c7d2fe", border: "#6366f1" },
 ]
 
 interface ImageEditorProps {
@@ -61,7 +67,45 @@ interface ImageEditorProps {
   onAddToNotes: (text: string) => void
 }
 
-type EditorMode = "view" | "highlight" | "annotate" | "pin"
+type EditorMode = "view" | "highlight" | "annotate" | "pin" | "arrow"
+
+function drawArrow(
+  ctx: CanvasRenderingContext2D,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  color: string,
+  dashed = false
+) {
+  const angle = Math.atan2(endY - startY, endX - startX)
+  const headLength = 14
+
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.fillStyle = color
+  ctx.lineWidth = 3
+  ctx.lineCap = "round"
+  if (dashed) ctx.setLineDash([7, 5])
+  ctx.beginPath()
+  ctx.moveTo(startX, startY)
+  ctx.lineTo(endX, endY)
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.beginPath()
+  ctx.moveTo(endX, endY)
+  ctx.lineTo(
+    endX - headLength * Math.cos(angle - Math.PI / 6),
+    endY - headLength * Math.sin(angle - Math.PI / 6)
+  )
+  ctx.lineTo(
+    endX - headLength * Math.cos(angle + Math.PI / 6),
+    endY - headLength * Math.sin(angle + Math.PI / 6)
+  )
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
 
 export function ImageEditor({
   image,
@@ -138,6 +182,7 @@ export function ImageEditor({
         "1": "pin",
         "2": "highlight",
         "3": "annotate",
+        "4": "arrow",
       }
       const nextMode = modes[event.key]
       if (!nextMode) return
@@ -210,6 +255,18 @@ export function ImageEditor({
           ctx.fill()
           return
         }
+
+        if (annotation.kind === "arrow") {
+          drawArrow(
+            ctx,
+            annotation.x,
+            annotation.y,
+            annotation.x + annotation.width,
+            annotation.y + annotation.height,
+            colorObj.border
+          )
+          return
+        }
         
         // Draw highlight rectangle
         ctx.fillStyle = annotation.color + "80" // 50% opacity
@@ -236,6 +293,18 @@ export function ImageEditor({
 
       // Draw current selection rectangle
       if (currentRect) {
+        if (mode === "arrow") {
+          drawArrow(
+            ctx,
+            currentRect.x,
+            currentRect.y,
+            currentRect.x + currentRect.w,
+            currentRect.y + currentRect.h,
+            selectedColor.border,
+            true
+          )
+          return
+        }
         ctx.fillStyle = selectedColor.value + "60"
         ctx.fillRect(currentRect.x, currentRect.y, currentRect.w, currentRect.h)
         ctx.strokeStyle = selectedColor.border
@@ -276,15 +345,36 @@ export function ImageEditor({
   }, [image.annotations, hoveredAnnotation?.id])
 
   const findAnnotationAt = (coords: { x: number; y: number }) =>
-    [...image.annotations]
-      .reverse()
-      .find(
-        (a) =>
-          coords.x >= a.x &&
-          coords.x <= a.x + a.width &&
-          coords.y >= a.y &&
-          coords.y <= a.y + a.height
+    [...image.annotations].reverse().find((annotation) => {
+      if (annotation.kind === "arrow") {
+        const endX = annotation.x + annotation.width
+        const endY = annotation.y + annotation.height
+        const lineLengthSquared = annotation.width ** 2 + annotation.height ** 2
+        if (lineLengthSquared === 0) return false
+        const progress = Math.max(
+          0,
+          Math.min(
+            1,
+            ((coords.x - annotation.x) * annotation.width +
+              (coords.y - annotation.y) * annotation.height) /
+              lineLengthSquared
+          )
+        )
+        const nearestX = annotation.x + progress * annotation.width
+        const nearestY = annotation.y + progress * annotation.height
+        return (
+          Math.hypot(coords.x - nearestX, coords.y - nearestY) <= 14 ||
+          Math.hypot(coords.x - endX, coords.y - endY) <= 18
+        )
+      }
+
+      return (
+        coords.x >= annotation.x &&
+        coords.x <= annotation.x + annotation.width &&
+        coords.y >= annotation.y &&
+        coords.y <= annotation.y + annotation.height
       )
+    })
 
   // Mouse handlers
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -336,7 +426,7 @@ export function ImageEditor({
       return
     }
 
-    if (mode === "highlight" || mode === "annotate") {
+    if (mode === "highlight" || mode === "annotate" || mode === "arrow") {
       const coords = getCanvasCoords(e)
       setIsDrawing(true)
       setDrawStart(coords)
@@ -354,6 +444,16 @@ export function ImageEditor({
 
     if (!isDrawing || mode === "view") return
     const coords = getCanvasCoords(e)
+    if (mode === "arrow") {
+      setCurrentRect({
+        x: drawStart.x,
+        y: drawStart.y,
+        w: coords.x - drawStart.x,
+        h: coords.y - drawStart.y,
+      })
+      return
+    }
+
     setCurrentRect({
       x: Math.min(drawStart.x, coords.x),
       y: Math.min(drawStart.y, coords.y),
@@ -368,12 +468,17 @@ export function ImageEditor({
       return
     }
 
-    // Only create annotation if rectangle is big enough
-    if (currentRect.w > 10 && currentRect.h > 10) {
-      if (mode === "annotate") {
+    const isValidSelection =
+      mode === "arrow"
+        ? Math.hypot(currentRect.w, currentRect.h) > 12
+        : currentRect.w > 10 && currentRect.h > 10
+
+    if (isValidSelection) {
+      if (mode === "annotate" || mode === "arrow") {
         // Show note input
         setSelectedAnnotation({
           id: "temp",
+          kind: mode === "arrow" ? "arrow" : undefined,
           x: currentRect.x,
           y: currentRect.y,
           width: currentRect.w,
@@ -439,7 +544,20 @@ export function ImageEditor({
   const annotationLabel = (annotation: ImageAnnotation, index: number) =>
     annotation.kind === "pin"
       ? t("imageEditor.pin", { index: index + 1 })
-      : t("imageEditor.highlight", { index: index + 1 })
+      : annotation.kind === "arrow"
+        ? t("imageEditor.arrow", { index: index + 1 })
+        : t("imageEditor.highlight", { index: index + 1 })
+
+  const getAnnotationNoteAnchor = (annotation: ImageAnnotation) =>
+    annotation.kind === "arrow"
+      ? {
+          x: (annotation.x + annotation.width) * canvasDisplayScale,
+          y: (annotation.y + annotation.height) * canvasDisplayScale,
+        }
+      : {
+          x: (annotation.x + annotation.width / 2) * canvasDisplayScale,
+          y: annotation.y * canvasDisplayScale,
+        }
 
   const layoutNoteLabels = () => {
     const labels = image.annotations
@@ -448,8 +566,7 @@ export function ImageEditor({
       .map(({ annotation, idx }) => {
         const colorObj =
           HIGHLIGHT_COLORS.find((c) => c.value === annotation.color) || HIGHLIGHT_COLORS[0]
-        const centerX = (annotation.x + annotation.width / 2) * canvasDisplayScale
-        const topY = annotation.y * canvasDisplayScale
+        const { x: centerX, y: topY } = getAnnotationNoteAnchor(annotation)
         return { annotation, idx, colorObj, centerX, topY, finalTop: topY }
       })
       .sort((a, b) => a.topY - b.topY || a.centerX - b.centerX)
@@ -584,6 +701,16 @@ export function ImageEditor({
                       <MapPin className="w-4 h-4" />
                       {t("imageEditor.modePin")}
                     </Button>
+                    <Button
+                      variant={mode === "arrow" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setMode("arrow")}
+                      className="gap-1.5"
+                      title={t("imageEditor.shortcutArrow")}
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                      {t("imageEditor.modeArrow")}
+                    </Button>
                   </>
                 )}
               </div>
@@ -622,7 +749,7 @@ export function ImageEditor({
           </div>
 
           {/* Color picker for highlight, note, and pin modes */}
-          {(mode === "highlight" || mode === "annotate" || mode === "pin") && (
+          {(mode === "highlight" || mode === "annotate" || mode === "pin" || mode === "arrow") && (
             <div className="flex items-center gap-3 mt-3">
               <span className="text-sm text-muted-foreground">{t("imageEditor.highlightColor")}</span>
               <div className="flex gap-1.5">
