@@ -34,6 +34,7 @@ import {
   Edit3,
   StickyNote,
   Tags,
+  MapPin,
 } from "lucide-react"
 import { ImageAnalysisResults, formatAnalysisForNotes } from "@/components/image-analysis-results"
 import { ImageAiAnalyzeDialog } from "@/components/image-ai-analyze-dialog"
@@ -60,7 +61,7 @@ interface ImageEditorProps {
   onAddToNotes: (text: string) => void
 }
 
-type EditorMode = "view" | "highlight" | "annotate"
+type EditorMode = "view" | "highlight" | "annotate" | "pin"
 
 export function ImageEditor({
   image,
@@ -150,6 +151,27 @@ export function ImageEditor({
       // Draw existing annotations
       image.annotations.forEach((annotation) => {
         const colorObj = HIGHLIGHT_COLORS.find((c) => c.value === annotation.color) || HIGHLIGHT_COLORS[0]
+
+        if (annotation.kind === "pin") {
+          const pinX = annotation.x + annotation.width / 2
+          const pinTop = annotation.y + 3
+
+          ctx.fillStyle = colorObj.border
+          ctx.beginPath()
+          ctx.arc(pinX, pinTop + 8, 8, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.beginPath()
+          ctx.moveTo(pinX - 6, pinTop + 13)
+          ctx.lineTo(pinX, annotation.y + annotation.height)
+          ctx.lineTo(pinX + 6, pinTop + 13)
+          ctx.closePath()
+          ctx.fill()
+          ctx.fillStyle = "#fff"
+          ctx.beginPath()
+          ctx.arc(pinX, pinTop + 8, 2.5, 0, Math.PI * 2)
+          ctx.fill()
+          return
+        }
         
         // Draw highlight rectangle
         ctx.fillStyle = annotation.color + "80" // 50% opacity
@@ -259,6 +281,23 @@ export function ImageEditor({
 
     if (readOnly) return
 
+    if (mode === "pin") {
+      const coords = getCanvasCoords(e)
+      setSelectedAnnotation({
+        id: "temp",
+        kind: "pin",
+        x: coords.x - 10,
+        y: coords.y - 28,
+        width: 20,
+        height: 28,
+        color: selectedColor.value,
+        note: "",
+        createdAt: new Date(),
+      })
+      setNoteText("")
+      return
+    }
+
     if (mode === "highlight" || mode === "annotate") {
       const coords = getCanvasCoords(e)
       setIsDrawing(true)
@@ -332,6 +371,7 @@ export function ImageEditor({
         y: selectedAnnotation.y,
         width: selectedAnnotation.width,
         height: selectedAnnotation.height,
+        kind: selectedAnnotation.kind,
         color: selectedAnnotation.color,
         note: noteText,
       })
@@ -358,6 +398,10 @@ export function ImageEditor({
   const displayHeight = imgDimensions.height * scale * zoom
   const canvasDisplayScale = imgDimensions.width ? displayWidth / imgDimensions.width : 1
   const annotationsWithNotes = image.annotations.filter((a) => a.note.trim())
+  const annotationLabel = (annotation: ImageAnnotation, index: number) =>
+    annotation.kind === "pin"
+      ? t("imageEditor.pin", { index: index + 1 })
+      : t("imageEditor.highlight", { index: index + 1 })
 
   const layoutNoteLabels = () => {
     const labels = image.annotations
@@ -431,7 +475,7 @@ export function ImageEditor({
             style={{ backgroundColor: annotation.color }}
           />
           <span className="text-[10px] font-semibold" style={{ color: colorObj.border }}>
-            {t("imageEditor.highlight", { index: idx + 1 })}
+            {annotationLabel(annotation, idx)}
           </span>
         </div>
         {annotation.note.trim() ? (
@@ -489,6 +533,15 @@ export function ImageEditor({
                       <MessageSquare className="w-4 h-4" />
                       {t("imageEditor.modeAnnotate")}
                     </Button>
+                    <Button
+                      variant={mode === "pin" ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setMode("pin")}
+                      className="gap-1.5"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      {t("imageEditor.modePin")}
+                    </Button>
                   </>
                 )}
               </div>
@@ -526,8 +579,8 @@ export function ImageEditor({
             </div>
           </div>
 
-          {/* Color picker for highlight/annotate mode */}
-          {(mode === "highlight" || mode === "annotate") && (
+          {/* Color picker for highlight, note, and pin modes */}
+          {(mode === "highlight" || mode === "annotate" || mode === "pin") && (
             <div className="flex items-center gap-3 mt-3">
               <span className="text-sm text-muted-foreground">{t("imageEditor.highlightColor")}</span>
               <div className="flex gap-1.5">
@@ -605,7 +658,11 @@ export function ImageEditor({
                     <CardHeader className="p-3">
                       <CardTitle className="text-sm flex items-center gap-2">
                         <Edit3 className="w-4 h-4" />
-                        {selectedAnnotation.id === "temp" ? t("imageEditor.newNote") : t("imageEditor.editNote")}
+                          {selectedAnnotation.id === "temp"
+                            ? selectedAnnotation.kind === "pin"
+                              ? t("imageEditor.newPinNote")
+                              : t("imageEditor.newNote")
+                            : t("imageEditor.editNote")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 space-y-3">
@@ -643,7 +700,7 @@ export function ImageEditor({
                           }}
                         >
                           <Trash2 className="w-4 h-4 ml-1" />
-                          {t("imageEditor.deleteHighlight")}
+                          {t("imageEditor.deleteAnnotation")}
                         </Button>
                       )}
                     </CardContent>
@@ -656,14 +713,14 @@ export function ImageEditor({
                     <CardTitle className="text-sm flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <Highlighter className="w-4 h-4" />
-                        {t("imageEditor.highlights", { count: image.annotations.length })}
+                        {t("imageEditor.annotations", { count: image.annotations.length })}
                       </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-3 pt-0">
                     {image.annotations.length === 0 ? (
                       <p className="text-xs text-muted-foreground text-center py-4">
-                        {t("imageEditor.noHighlights")}
+                        {t("imageEditor.noAnnotations")}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -687,7 +744,7 @@ export function ImageEditor({
                                 style={{ backgroundColor: annotation.color }}
                               />
                               <span className="text-xs font-medium">
-                                {t("imageEditor.highlight", { index: idx + 1 })}
+                                {annotationLabel(annotation, idx)}
                               </span>
                             </div>
                             {annotation.note && (
