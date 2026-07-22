@@ -551,8 +551,8 @@ export function ImageEditor({
   const getAnnotationNoteAnchor = (annotation: ImageAnnotation) =>
     annotation.kind === "arrow"
       ? {
-          x: (annotation.x + annotation.width) * canvasDisplayScale,
-          y: (annotation.y + annotation.height) * canvasDisplayScale,
+          x: annotation.x * canvasDisplayScale,
+          y: annotation.y * canvasDisplayScale,
         }
       : {
           x: (annotation.x + annotation.width / 2) * canvasDisplayScale,
@@ -806,13 +806,16 @@ export function ImageEditor({
 
                 {!showAllNotes &&
                   hoveredAnnotation &&
-                  renderAnnotationNoteBubble(
-                    hoveredAnnotation,
-                    image.annotations.findIndex((a) => a.id === hoveredAnnotation.id),
-                    (hoveredAnnotation.x + hoveredAnnotation.width / 2) * canvasDisplayScale,
-                    hoveredAnnotation.y * canvasDisplayScale,
-                    50
-                  )}
+                  (() => {
+                    const anchor = getAnnotationNoteAnchor(hoveredAnnotation)
+                    return renderAnnotationNoteBubble(
+                      hoveredAnnotation,
+                      image.annotations.findIndex((a) => a.id === hoveredAnnotation.id),
+                      anchor.x,
+                      anchor.y,
+                      50
+                    )
+                  })()}
               </div>
             </div>
           </div>
