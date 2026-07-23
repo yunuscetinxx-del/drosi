@@ -36,7 +36,6 @@ import {
   Tags,
   MapPin,
   ArrowUpRight,
-  Link2,
 } from "lucide-react"
 import { ImageAnalysisResults, formatAnalysisForNotes } from "@/components/image-analysis-results"
 import { ImageAiAnalyzeDialog } from "@/components/image-ai-analyze-dialog"
@@ -145,7 +144,6 @@ export function ImageEditor({
   const [noteText, setNoteText] = useState("")
   const [showAllNotes, setShowAllNotes] = useState(false)
   const [showAiDialog, setShowAiDialog] = useState(false)
-  const [showLinkedNotes, setShowLinkedNotes] = useState(false)
   const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0 })
   const [canvasViewport, setCanvasViewport] = useState({ maxW: 1200, maxH: 720 })
 
@@ -807,11 +805,9 @@ export function ImageEditor({
 
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* Canvas area */}
-          <div
-            ref={containerRef}
-            className="relative min-w-0 flex-1 overflow-auto bg-secondary/20 p-4"
-          >
-            <div className="flex items-center justify-center min-h-full">
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div ref={containerRef} className="relative min-h-0 flex-1 overflow-auto bg-secondary/20 p-4">
+              <div className="flex min-h-full items-center justify-center">
               <div
                 className="relative inline-block"
                 style={{ width: displayWidth, height: displayHeight }}
@@ -850,8 +846,17 @@ export function ImageEditor({
                       50
                     )
                   })()}
+                </div>
               </div>
             </div>
+            <AiImageNotesPanel
+              images={[image]}
+              note={image.aiImageNote}
+              readOnly={readOnly}
+              embedded
+              onActiveAnnotationChange={setHoveredAnnotation}
+              onChange={onSetAiImageNote}
+            />
           </div>
 
           {/* Side panel */}
@@ -1008,15 +1013,6 @@ export function ImageEditor({
                       </p>
                     )}
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setShowLinkedNotes(true)}
-                    >
-                      <Link2 className="ms-1 h-4 w-4" />
-                      {t("aiImageNotes.open")}
-                    </Button>
                   </CardContent>
                 </Card>
               </div>
@@ -1032,20 +1028,6 @@ export function ImageEditor({
         onSaveAnalysis={readOnly ? undefined : onSetAIAnalysis}
         onAddToNotes={onAddToNotes}
       />
-
-      <Dialog open={showLinkedNotes} onOpenChange={setShowLinkedNotes}>
-        <DialogContent className="max-h-[92vh] w-[min(1200px,96vw)] max-w-[96vw] overflow-y-auto p-0 sm:max-w-[96vw]">
-          <DialogHeader className="border-b border-border px-5 py-4">
-            <DialogTitle>{t("aiImageNotes.title")}</DialogTitle>
-          </DialogHeader>
-          <AiImageNotesPanel
-            images={[image]}
-            note={image.aiImageNote}
-            readOnly={readOnly}
-            onChange={onSetAiImageNote}
-          />
-        </DialogContent>
-      </Dialog>
     </Dialog>
   )
 }

@@ -25,10 +25,19 @@ interface AiImageNotesPanelProps {
   images: LessonImage[]
   note?: AiImageNote
   readOnly?: boolean
+  embedded?: boolean
+  onActiveAnnotationChange?: (annotation: ImageAnnotation | null) => void
   onChange: (note: AiImageNote) => void
 }
 
-export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, onChange }: AiImageNotesPanelProps) {
+export function AiImageNotesPanel({
+  images,
+  note: savedNote,
+  readOnly = false,
+  embedded = false,
+  onActiveAnnotationChange,
+  onChange,
+}: AiImageNotesPanelProps) {
   const { t } = useTranslations()
   const [note, setNote] = useState<AiImageNote>(savedNote ?? EMPTY_NOTE)
   const [target, setTarget] = useState("")
@@ -62,6 +71,10 @@ export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, o
     ? annotationTargets.find((item) => item.value === `${activeLink.imageId}:${activeLink.annotationId}`) ?? null
     : null
   const previewImage = activeTarget?.image ?? images[0] ?? null
+
+  useEffect(() => {
+    onActiveAnnotationChange?.(activeTarget?.annotation ?? null)
+  }, [activeTarget?.annotation, onActiveAnnotationChange])
 
   const save = (next: AiImageNote) => {
     setNote(next)
@@ -110,7 +123,9 @@ export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, o
           )}
           style={{ backgroundColor: link.color ?? LINK_COLORS[0].value }}
           onMouseEnter={() => setActiveLinkId(link.id)}
+          onMouseLeave={() => setActiveLinkId(null)}
           onFocus={() => setActiveLinkId(link.id)}
+          onBlur={() => setActiveLinkId(null)}
           onClick={() => setActiveLinkId(link.id)}
           tabIndex={0}
         >
@@ -206,7 +221,7 @@ export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, o
   )
 
   return (
-    <section className="border-t border-border bg-card">
+    <section className={cn("border-t border-border bg-card", embedded && "shrink-0")}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold">
@@ -216,10 +231,12 @@ export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, o
           <p className="text-[11px] text-muted-foreground">{t("aiImageNotes.hint")}</p>
         </div>
         <div className="flex gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={changeLayout} disabled={readOnly}>
-            {note.layout === "side" ? <PanelBottom className="ms-1 h-4 w-4" /> : <PanelRight className="ms-1 h-4 w-4" />}
-            {note.layout === "side" ? t("aiImageNotes.moveBelow") : t("aiImageNotes.moveSide")}
-          </Button>
+          {!embedded && (
+            <Button type="button" size="sm" variant="outline" onClick={changeLayout} disabled={readOnly}>
+              {note.layout === "side" ? <PanelBottom className="ms-1 h-4 w-4" /> : <PanelRight className="ms-1 h-4 w-4" />}
+              {note.layout === "side" ? t("aiImageNotes.moveBelow") : t("aiImageNotes.moveSide")}
+            </Button>
+          )}
           {!readOnly && (
             <Button type="button" size="sm" variant={isEditing ? "secondary" : "outline"} onClick={() => isEditing ? saveAndFinishEditing() : setIsEditing(true)}>
               {isEditing ? <Check className="ms-1 h-4 w-4" /> : <Edit3 className="ms-1 h-4 w-4" />}
@@ -229,8 +246,12 @@ export function AiImageNotesPanel({ images, note: savedNote, readOnly = false, o
         </div>
       </div>
 
-      <div className={cn("grid gap-4 p-3", note.layout === "side" && "lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]")}>
-        {note.layout === "below" ? <>{imageContent}{noteContent}</> : <>{noteContent}{imageContent}</>}
+      <div className={cn(
+        !embedded && "grid gap-4 p-3",
+        !embedded && note.layout === "side" && "lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]",
+        embedded && "max-h-[38vh] overflow-y-auto p-3 pt-0"
+      )}>
+        {embedded ? noteContent : note.layout === "below" ? <>{imageContent}{noteContent}</> : <>{noteContent}{imageContent}</>}
       </div>
     </section>
   )
