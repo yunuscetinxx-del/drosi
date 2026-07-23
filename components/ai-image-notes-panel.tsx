@@ -148,14 +148,6 @@ export function AiImageNotesPanel({
     <div className="min-w-0 space-y-3">
       {isEditing && !readOnly && (
         <>
-          <Textarea
-            ref={textareaRef}
-            value={note.content}
-            onChange={(event) => handleContentChange(event.target.value)}
-            placeholder={t("aiImageNotes.placeholder")}
-            rows={10}
-            className="resize-y text-sm leading-relaxed"
-          />
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="space-y-1">
               <Label className="text-xs">{t("aiImageNotes.marker")}</Label>
@@ -196,7 +188,16 @@ export function AiImageNotesPanel({
       )}
 
       <div className="min-h-24 whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm leading-relaxed">
-        {note.content ? linkedPreview() : <span className="text-muted-foreground">{t("aiImageNotes.previewEmpty")}</span>}
+        {isEditing && !readOnly ? (
+          <Textarea
+            ref={textareaRef}
+            value={note.content}
+            onChange={(event) => handleContentChange(event.target.value)}
+            placeholder={t("aiImageNotes.placeholder")}
+            rows={10}
+            className="min-h-24 resize-y border-0 bg-transparent p-0 text-sm leading-relaxed shadow-none focus-visible:ring-0"
+          />
+        ) : note.content ? linkedPreview() : <span className="text-muted-foreground">{t("aiImageNotes.previewEmpty")}</span>}
       </div>
     </div>
   )
