@@ -95,7 +95,12 @@ export function ImageAiAnalyzer({
     setResult(null)
 
     try {
-      const response = await requestImageAnalysis(activeImageUrl, instructions)
+      const response = await requestImageAnalysis(activeImageUrl, instructions || "Describe the image in German at B1 level.", {
+        mode: "school",
+        subject: "Deutsch",
+        level: "B1",
+        subjectMode: "manual",
+      })
 
       if (!response.ok) {
         setError(response.error)

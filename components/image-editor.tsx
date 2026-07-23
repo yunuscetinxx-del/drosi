@@ -557,7 +557,12 @@ export function ImageEditor({
 
   const handleSaveAnalysis = (analysis: Omit<ImageAIAnalysis, "analyzedAt">) => {
     onSetAIAnalysis(analysis)
-    if (image.aiImageNote?.content || !analysis.description.trim() || !analysis.markers?.length || !imgDimensions.width) return
+    if (
+      (image.aiImageNote?.content && image.aiImageNote.links.length === 0) ||
+      !analysis.description.trim() ||
+      !analysis.markers?.length ||
+      !imgDimensions.width
+    ) return
 
     const links: AiImageNote["links"] = []
     for (const [index, marker] of analysis.markers.entries()) {

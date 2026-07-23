@@ -38,6 +38,11 @@ export interface SchoolAnalysisOptions {
 }
 
 export function buildSchoolAnalysisPrompt(opts: SchoolAnalysisOptions): string {
+  const isGermanLearning = /deutsch|german|ألمان/i.test(
+    `${opts.subject ?? ""} ${opts.lessonSubject ?? ""} ${opts.instructions ?? ""}`
+  )
+  if (isGermanLearning) return buildGermanImageLearningPrompt(opts.instructions)
+
   const profileBlock = opts.userProfile
     ? `\nملف تعلّم الطالب (استخدمه لتخصيص التحليل):\n${summarizeProfileForPrompt(opts.userProfile)}`
     : ""
@@ -68,6 +73,36 @@ export function buildSchoolAnalysisPrompt(opts: SchoolAnalysisOptions): string {
 ${lessonBlock}${manualBlock}${profileBlock}${instructionsBlock}
 
 ${SCHOOL_JSON_FORMAT}`
+}
+
+function buildGermanImageLearningPrompt(instructions?: string): string {
+  const userInstruction = instructions?.trim()
+    ? `\nAdditional learner request: ${instructions.trim()}`
+    : ""
+
+  return `You are a German teacher for CEFR level B1. Analyze ONLY the attached image.
+
+Write the image description in clear, natural German at B1 level. The description must be based only on visible image content. Do not write Arabic, Chinese, English, or any other language in the description. Do not invent details.
+
+Return JSON only, with this exact structure:
+{
+  "detectedSubject": "Deutsch",
+  "detectedLevel": "B1",
+  "pageType": "textbook_reading",
+  "visibleText": "Visible text in the image, or Leer if there is no text",
+  "description": "A German B1 image description",
+  "summary": "A short German summary",
+  "keyElements": ["German key noun 1", "German key noun 2"],
+  "studyNotes": ["A short German B1 learning tip"],
+  "relatedConcepts": ["German learning topic"],
+  "grammarTopics": ["German grammar topic used in the description"],
+  "vocabulary": [{"term": "German word", "meaning": "Arabic meaning"}],
+  "markers": [{"phrase": "Exact German phrase from description", "note": "Arabic translation", "x": 0, "y": 0}],
+  "exercises": [],
+  "studyPlan": ["German B1 review step"]
+}
+
+Create 3 to 6 markers for visible people or objects. Each marker phrase must occur exactly in description. x and y are approximate image coordinates from 0 to 1000.${userInstruction}`
 }
 
 function summarizeProfileForPrompt(profile: AILearningProfile): string {

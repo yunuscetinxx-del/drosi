@@ -58,7 +58,12 @@ export function ImageAiAnalyzeDialog({
     setAnalyzing(true)
     setError(null)
 
-    const response = await requestImageAnalysis(image.url, instructions)
+    const response = await requestImageAnalysis(image.url, instructions || "Describe the image in German at B1 level.", {
+      mode: "school",
+      subject: "Deutsch",
+      level: "B1",
+      subjectMode: "manual",
+    })
 
     setAnalyzing(false)
 
