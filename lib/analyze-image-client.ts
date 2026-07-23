@@ -80,6 +80,7 @@ export async function requestLessonChat(params: {
   }>
   previousMessages: Array<{ role: "user" | "assistant"; content: string }>
   topic?: string
+  learningLanguage?: "de"
 }): Promise<{ ok: true; reply: string } | { ok: false; error: string }> {
   const res = await fetch("/api/lesson-chat", {
     method: "POST",
@@ -93,6 +94,7 @@ export async function requestLessonChat(params: {
       contextText: params.contextText,
       previousMessages: params.previousMessages,
       topic: params.topic,
+      learningLanguage: params.learningLanguage,
     }),
   })
   const data = (await res.json()) as { reply?: string; error?: string }

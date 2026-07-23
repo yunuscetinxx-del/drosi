@@ -8,7 +8,7 @@ export type { ChatMessage }
 export async function callAiChat(
   messages: ChatMessage[],
   credentials: AiCredentials,
-  opts?: { maxTokens?: number; temperature?: number; title?: string; json?: boolean }
+  opts?: { maxTokens?: number; temperature?: number; title?: string; json?: boolean; german?: boolean }
 ): Promise<string> {
   if (credentials.source === "ollama") {
     return callOllama(messages, opts)

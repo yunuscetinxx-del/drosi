@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
         maxTokens: isSchool ? 2000 : AI_MODEL_CONFIG.maxTokensImage,
         title: "Durusi - Analyzer",
         json: true,
+        german: /deutsch|german|ألمان/i.test(`${subject ?? ""} ${lessonSubject ?? ""} ${instructions ?? ""}`),
       }
     )
 

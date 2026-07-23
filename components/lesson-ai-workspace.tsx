@@ -78,9 +78,9 @@ export function LessonAiWorkspace({
   const notes = useMemo(() => getLessonNotes(lesson), [lesson])
   const wordPages = lesson.wordPages ?? []
 
-  const [subjectMode, setSubjectMode] = useState<"auto" | "manual">("auto")
-  const [subject, setSubject] = useState(lesson.subject || "")
-  const [level, setLevel] = useState("")
+  const [subjectMode] = useState<"auto" | "manual">("manual")
+  const [subject] = useState("Deutsch")
+  const [level] = useState("B1")
   const [instructions, setInstructions] = useState("")
   const [uploadPreview, setUploadPreview] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -162,10 +162,10 @@ export function LessonAiWorkspace({
     setAnalyzing(true)
     setError(null)
     try {
-      const res = await requestImageAnalysis(uploadPreview, instructions, {
+      const res = await requestImageAnalysis(uploadPreview, instructions || "Describe the image in German at B1 level.", {
         mode: "school",
-        subject: subjectMode === "manual" ? subject : undefined,
-        level: subjectMode === "manual" ? level : undefined,
+        subject,
+        level,
         subjectMode,
         lessonTitle: lesson.title,
         lessonSubject: lesson.subject,
@@ -244,6 +244,7 @@ export function LessonAiWorkspace({
       previousMessages: withUser.messages
         .slice(0, -1)
         .map((m) => ({ role: m.role, content: m.content })),
+      learningLanguage: "de",
     })
 
     setChatLoading(false)
@@ -328,7 +329,7 @@ export function LessonAiWorkspace({
                     onClick={() => fileRef.current?.click()}
                   >
                     <Upload className="h-4 w-4 ml-1" />
-                    {t("aiWorkspace.uploadPage")}
+                    {t("aiWorkspace.uploadPage")} - Deutsch B1
                   </Button>
                   {uploadPreview && (
                     <img src={uploadPreview} alt="" className="max-h-24 rounded border object-contain w-full" />
@@ -336,7 +337,7 @@ export function LessonAiWorkspace({
                   <Textarea
                     value={instructions}
                     onChange={(e) => setInstructions(e.target.value)}
-                    placeholder={t("aiHub.instructionsPlaceholder")}
+                    placeholder="Optional: Was möchtest du auf Deutsch B1 üben?"
                     rows={2}
                     className="text-xs"
                   />

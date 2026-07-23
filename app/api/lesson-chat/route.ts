@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     contextText?: string
     previousMessages?: Array<{ role: "user" | "assistant"; content: string }>
     topic?: string
+    learningLanguage?: "de"
   }
   try {
     body = await req.json()
@@ -51,7 +52,15 @@ export async function POST(req: NextRequest) {
     .map(([k, s]) => `${k}: ${s.topicsStudied.slice(-5).join("، ")}`)
     .join("\n")
 
-  const systemPrompt = `أنت مساعد تعليمي رسمي (مثل NotebookLM) متخصص في تحليل الدروس المدرسية.
+  const isGermanLearning = body.learningLanguage === "de" || /deutsch|german|ألمان/i.test(body.lessonSubject ?? "")
+  const systemPrompt = isGermanLearning
+    ? `You are a German teacher for CEFR B1 learners.
+- Answer in clear German at B1 level by default.
+- Use only the attached sources and say when information is missing.
+- Never use Chinese characters or Chinese words.
+- Give a short Arabic explanation only when the student explicitly asks for Arabic translation or explanation.
+- Correct German gently and provide a practical example when useful.`
+    : `أنت مساعد تعليمي رسمي (مثل NotebookLM) متخصص في تحليل الدروس المدرسية.
 - أجب بالعربية بأسلوب واضح ومنظم
 - استند فقط إلى المصادر المرفقة أدناه؛ إن نقصت معلومة قل ذلك صراحة
 - عند شرح تمارين: خطوة بخطوة مع أمثلة
@@ -80,7 +89,7 @@ ${message}`
         { role: "user", content: userPrompt },
       ],
       credentials,
-      { maxTokens: 2000, title: "Durusi - Lesson Chat" }
+      { maxTokens: 2000, title: "Durusi - Lesson Chat", german: isGermanLearning }
     )
 
     const topic = body.topic?.trim() || body.lessonSubject || "عام"

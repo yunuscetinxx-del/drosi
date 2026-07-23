@@ -58,14 +58,14 @@ export async function isOllamaModelAvailable(): Promise<boolean> {
 
 export async function callOllama(
   messages: ChatMessage[],
-  opts?: { maxTokens?: number; temperature?: number; json?: boolean }
+  opts?: { maxTokens?: number; temperature?: number; json?: boolean; german?: boolean }
 ): Promise<string> {
-  const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+  const request = async (requestMessages: ChatMessage[]) => fetch(`${OLLAMA_BASE_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: OLLAMA_MODEL,
-      messages: await toOllamaMessages(messages),
+      messages: await toOllamaMessages(requestMessages),
       stream: false,
       ...(opts?.json ? { format: "json" } : {}),
       options: {
@@ -75,7 +75,22 @@ export async function callOllama(
     }),
   })
 
+  let response = await request(messages)
   if (!response.ok) throw new Error(`تعذّر الاتصال بـ Ollama المحلي (${response.status})`)
-  const data = (await response.json()) as { message?: { content?: string } }
-  return data.message?.content?.trim() ?? ""
+  let data = (await response.json()) as { message?: { content?: string } }
+  let content = data.message?.content?.trim() ?? ""
+
+  if (opts?.german && /\p{Script=Han}/u.test(content)) {
+    response = await request([
+      ...messages,
+      {
+        role: "user",
+        content: "Rewrite your previous answer in German at CEFR B1 level only. Never use Chinese characters. Keep the requested JSON format if one was requested.",
+      },
+    ])
+    if (!response.ok) throw new Error(`تعذّر إعادة طلب Ollama المحلي (${response.status})`)
+    data = (await response.json()) as { message?: { content?: string } }
+    content = data.message?.content?.trim() ?? ""
+  }
+  return content
 }
