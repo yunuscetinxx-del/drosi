@@ -21,11 +21,12 @@ import {
 const GEMINI_KEY_URL = "https://aistudio.google.com/apikey"
 
 type AiSettings = {
+  ollamaAvailable: boolean
   geminiConnected: boolean
   geminiKeyHint: string | null
   geminiKeyUpdatedAt: string | null
   serverFallbackAvailable: boolean
-  activeSource: "gemini" | "openrouter" | "none"
+  activeSource: "ollama" | "gemini" | "openrouter" | "none"
 }
 
 export function AiSettingsPanel() {
@@ -107,6 +108,7 @@ export function AiSettingsPanel() {
   }
 
   function activeSourceLabel(source: AiSettings["activeSource"]) {
+    if (source === "ollama") return "Ollama المحلي"
     if (source === "gemini") return t("aiSettings.sourceGemini")
     if (source === "openrouter") return t("aiSettings.sourceServer")
     return t("aiSettings.sourceNone")
@@ -142,6 +144,12 @@ export function AiSettingsPanel() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {settings?.ollamaAvailable && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+            <span>Ollama المحلي متصل ويُستخدم بدون مفتاح API.</span>
+          </div>
+        )}
         <div className="rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-3 text-sm text-muted-foreground space-y-2">
           <p className="font-medium text-foreground">{t("aiSettings.subscriptionNoteTitle")}</p>
           <p>{t("aiSettings.subscriptionNoteBody")}</p>

@@ -1,4 +1,5 @@
 import { callGemini } from "@/lib/gemini-client"
+import { callOllama } from "@/lib/ollama-client"
 import { callOpenRouter, type ChatMessage } from "@/lib/openrouter-client"
 import type { AiCredentials } from "@/lib/user-ai-credentials"
 
@@ -9,6 +10,9 @@ export async function callAiChat(
   credentials: AiCredentials,
   opts?: { maxTokens?: number; temperature?: number; title?: string }
 ): Promise<string> {
+  if (credentials.source === "ollama") {
+    return callOllama(messages, opts)
+  }
   if (credentials.source === "gemini") {
     return callGemini(messages, credentials.apiKey, opts)
   }

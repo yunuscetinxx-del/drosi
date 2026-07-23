@@ -1,7 +1,8 @@
 import { decryptApiKey } from "@/lib/ai-key-crypto"
+import { isOllamaModelAvailable } from "@/lib/ollama-client"
 import { prisma } from "@/lib/prisma"
 
-export type AiCredentialSource = "gemini" | "openrouter"
+export type AiCredentialSource = "ollama" | "gemini" | "openrouter"
 
 export type AiCredentials = {
   source: AiCredentialSource
@@ -11,13 +12,17 @@ export type AiCredentials = {
 export class AiNotConfiguredError extends Error {
   constructor() {
     super(
-      "لا يوجد مفتاح ذكاء اصطناعي. اربط Gemini من الإعدادات (مجاني) أو اطلب من مدير الموقع تفعيل خادم OpenRouter."
+      "لم يتم العثور على Ollama محلي أو مفتاح ذكاء اصطناعي. شغّل Ollama وحمّل نموذج qwen2.5vl:7b، أو اربط Gemini من الإعدادات."
     )
     this.name = "AiNotConfiguredError"
   }
 }
 
 export async function resolveAiCredentials(userId: string): Promise<AiCredentials> {
+  if (await isOllamaModelAvailable()) {
+    return { source: "ollama", apiKey: "" }
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { geminiApiKeyEnc: true },
@@ -39,11 +44,12 @@ export async function resolveAiCredentials(userId: string): Promise<AiCredential
 }
 
 export type AiSettingsPublic = {
+  ollamaAvailable: boolean
   geminiConnected: boolean
   geminiKeyHint: string | null
   geminiKeyUpdatedAt: string | null
   serverFallbackAvailable: boolean
-  activeSource: "gemini" | "openrouter" | "none"
+  activeSource: "ollama" | "gemini" | "openrouter" | "none"
 }
 
 export async function getPublicAiSettings(userId: string): Promise<AiSettingsPublic> {
@@ -54,12 +60,15 @@ export async function getPublicAiSettings(userId: string): Promise<AiSettingsPub
 
   const geminiConnected = Boolean(user?.geminiApiKeyEnc)
   const serverFallbackAvailable = Boolean(process.env.OPENROUTER_API_KEY?.trim())
+  const ollamaAvailable = await isOllamaModelAvailable()
 
   let activeSource: AiSettingsPublic["activeSource"] = "none"
-  if (geminiConnected) activeSource = "gemini"
+  if (ollamaAvailable) activeSource = "ollama"
+  else if (geminiConnected) activeSource = "gemini"
   else if (serverFallbackAvailable) activeSource = "openrouter"
 
   return {
+    ollamaAvailable,
     geminiConnected,
     geminiKeyHint: user?.geminiKeyHint ?? null,
     geminiKeyUpdatedAt: user?.geminiKeyUpdatedAt?.toISOString() ?? null,
