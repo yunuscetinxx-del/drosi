@@ -14,7 +14,7 @@ interface ImageUploaderProps {
   readOnly?: boolean
   onAddImage: (imageUrl: string) => void
   onRemoveImage: (imageId: string) => void
-  onAddAnnotation: (imageId: string, annotation: Omit<ImageAnnotation, "id" | "createdAt">) => void
+  onAddAnnotation: (imageId: string, annotation: Omit<ImageAnnotation, "id" | "createdAt">) => ImageAnnotation
   onUpdateAnnotation: (imageId: string, annotationId: string, updates: Partial<ImageAnnotation>) => void
   onRemoveAnnotation: (imageId: string, annotationId: string) => void
   onSetAIAnalysis: (imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void

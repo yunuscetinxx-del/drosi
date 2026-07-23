@@ -32,6 +32,18 @@ export function parseAnalysisContent(raw: Record<string, unknown>): LessonAnalys
     Array.isArray(raw[key]) ? (raw[key] as unknown[]).map(String) : []
   const text = (key: string) =>
     Array.isArray(raw[key]) ? arr(key).join("\n") : raw[key] ? String(raw[key]) : undefined
+  const markers = Array.isArray(raw.markers)
+    ? raw.markers
+        .filter((marker): marker is Record<string, unknown> => Boolean(marker) && typeof marker === "object")
+        .map((marker) => ({
+          phrase: String(marker.phrase ?? "").trim(),
+          note: String(marker.note ?? "").trim(),
+          x: Math.max(0, Math.min(1000, Number(marker.x) || 500)),
+          y: Math.max(0, Math.min(1000, Number(marker.y) || 500)),
+        }))
+        .filter((marker) => marker.phrase && marker.note)
+        .slice(0, 6)
+    : undefined
 
   const vocabulary = Array.isArray(raw.vocabulary)
     ? (raw.vocabulary as Array<{ term?: string; meaning?: string }>)
@@ -54,7 +66,8 @@ export function parseAnalysisContent(raw: Record<string, unknown>): LessonAnalys
 
   return {
     visibleText: text("visibleText"),
-    description: String(raw.description ?? ""),
+    description: text("description") ?? "",
+    markers,
     keyElements: arr("keyElements"),
     studyNotes: arr("studyNotes"),
     relatedConcepts: arr("relatedConcepts"),

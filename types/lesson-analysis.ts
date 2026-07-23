@@ -28,6 +28,7 @@ export interface VocabularyEntry {
 
 export interface LessonAnalysisContent {
   visibleText?: string
+  markers?: Array<{ phrase: string; note: string; x: number; y: number }>
   description: string
   keyElements: string[]
   studyNotes: string[]

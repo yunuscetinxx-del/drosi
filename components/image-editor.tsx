@@ -61,7 +61,7 @@ interface ImageEditorProps {
   readOnly?: boolean
   open: boolean
   onClose: () => void
-  onAddAnnotation: (annotation: Omit<ImageAnnotation, "id" | "createdAt">) => void
+  onAddAnnotation: (annotation: Omit<ImageAnnotation, "id" | "createdAt">) => ImageAnnotation
   onUpdateAnnotation: (annotationId: string, updates: Partial<ImageAnnotation>) => void
   onRemoveAnnotation: (annotationId: string) => void
   onSetAIAnalysis: (analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
@@ -555,6 +555,39 @@ export function ImageEditor({
     }
   }
 
+  const handleSaveAnalysis = (analysis: Omit<ImageAIAnalysis, "analyzedAt">) => {
+    onSetAIAnalysis(analysis)
+    if (image.aiImageNote?.content || !analysis.description.trim() || !analysis.markers?.length || !imgDimensions.width) return
+
+    const links: AiImageNote["links"] = []
+    for (const [index, marker] of analysis.markers.entries()) {
+      const start = analysis.description.indexOf(marker.phrase)
+      if (start < 0) continue
+
+      const annotation = onAddAnnotation({
+        kind: "pin",
+        x: Math.max(0, (marker.x / 1000) * imgDimensions.width - 10),
+        y: Math.max(0, (marker.y / 1000) * imgDimensions.height - 28),
+        width: 20,
+        height: 28,
+        color: HIGHLIGHT_COLOR_DEFS[(index + 1) % HIGHLIGHT_COLOR_DEFS.length].value,
+        note: marker.note,
+      })
+      links.push({
+        id: crypto.randomUUID(),
+        start,
+        end: start + marker.phrase.length,
+        imageId: image.id,
+        annotationId: annotation.id,
+        color: annotation.color,
+      })
+    }
+
+    if (links.length) {
+      onSetAiImageNote({ content: analysis.description, layout: "below", links })
+    }
+  }
+
   const maxWidth = canvasViewport.maxW
   const maxHeight = canvasViewport.maxH
   const scale = Math.min(maxWidth / imgDimensions.width, maxHeight / imgDimensions.height, 1)
@@ -1025,7 +1058,7 @@ export function ImageEditor({
         open={showAiDialog}
         onOpenChange={setShowAiDialog}
         image={image}
-        onSaveAnalysis={readOnly ? undefined : onSetAIAnalysis}
+        onSaveAnalysis={readOnly ? undefined : handleSaveAnalysis}
         onAddToNotes={onAddToNotes}
       />
     </Dialog>

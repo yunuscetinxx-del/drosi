@@ -43,7 +43,7 @@ interface LessonDetailProps {
   onUpdate: (id: string, updates: Partial<Lesson>) => void
   onAddImage: (lessonId: string, imageUrl: string) => void
   onRemoveImage: (lessonId: string, imageId: string) => void
-  onAddImageAnnotation: (lessonId: string, imageId: string, annotation: Omit<ImageAnnotation, "id" | "createdAt">) => void
+  onAddImageAnnotation: (lessonId: string, imageId: string, annotation: Omit<ImageAnnotation, "id" | "createdAt">) => ImageAnnotation
   onUpdateImageAnnotation: (lessonId: string, imageId: string, annotationId: string, updates: Partial<ImageAnnotation>) => void
   onRemoveImageAnnotation: (lessonId: string, imageId: string, annotationId: string) => void
   onSetImageAIAnalysis: (lessonId: string, imageId: string, analysis: Omit<ImageAIAnalysis, "analyzedAt">) => void
@@ -404,9 +404,7 @@ export function LessonDetail({
                   readOnly={readOnly}
                   onAddImage={(url) => onAddImage(lesson.id, url)}
                   onRemoveImage={(imageId) => onRemoveImage(lesson.id, imageId)}
-                  onAddAnnotation={(imageId, annotation) =>
-                    onAddImageAnnotation(lesson.id, imageId, annotation)
-                  }
+                  onAddAnnotation={(imageId, annotation) => onAddImageAnnotation(lesson.id, imageId, annotation)}
                   onUpdateAnnotation={(imageId, annotationId, updates) =>
                     onUpdateImageAnnotation(lesson.id, imageId, annotationId, updates)
                   }

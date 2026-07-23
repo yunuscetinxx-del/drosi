@@ -80,6 +80,12 @@ export interface ImageAnnotation {
 export interface ImageAIAnalysis {
   description: string
   visibleText?: string
+  markers?: Array<{
+    phrase: string
+    note: string
+    x: number
+    y: number
+  }>
   keyElements: string[]
   studyNotes: string[]
   relatedConcepts: string[]

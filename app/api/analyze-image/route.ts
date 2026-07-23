@@ -133,6 +133,7 @@ export async function POST(req: NextRequest) {
         studyNotes: content.studyNotes,
         relatedConcepts: content.relatedConcepts,
         visibleText: content.visibleText,
+        markers: content.markers,
       },
       content,
       mode: isSchool ? "school" : "general",
