@@ -469,6 +469,7 @@ export const messages: Messages = {
     addToLessonWithAnalysis: "Bild mit Analyse zur Lektion hinzufügen",
     dialogHint: "Beschreibe die gewünschte Analyse — z. B. Diagramm zusammenfassen, Formeln betonen",
     noAnalysisYet: "Noch keine Analyse",
+    extractedText: "Aus dem Bild extrahierter Text",
   },
   imageEditor: {
     title: "Bildeditor",

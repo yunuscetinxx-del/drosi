@@ -123,7 +123,13 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      analysis: raw,
+      analysis: {
+        description: content.description,
+        keyElements: content.keyElements,
+        studyNotes: content.studyNotes,
+        relatedConcepts: content.relatedConcepts,
+        visibleText: content.visibleText,
+      },
       content,
       mode: isSchool ? "school" : "general",
     })

@@ -28,6 +28,14 @@ export function ImageAnalysisResults({
 }: ImageAnalysisResultsProps) {
   return (
     <div className="space-y-3">
+      {analysis.visibleText && (
+        <div>
+          <h4 className="mb-1 text-xs font-medium">{t("imageAi.extractedText")}</h4>
+          <p className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+            {analysis.visibleText}
+          </p>
+        </div>
+      )}
       <div>
         <h4 className="mb-1 flex items-center gap-1 text-xs font-medium">
           <BookOpen className="h-3 w-3" />

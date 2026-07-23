@@ -27,6 +27,7 @@ export interface VocabularyEntry {
 }
 
 export interface LessonAnalysisContent {
+  visibleText?: string
   description: string
   keyElements: string[]
   studyNotes: string[]

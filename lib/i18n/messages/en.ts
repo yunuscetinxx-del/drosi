@@ -469,6 +469,7 @@ export const messages: Messages = {
     addToLessonWithAnalysis: "Add image to lesson with analysis",
     dialogHint: "Describe what you want from the analysis — e.g. summarize the diagram, focus on formulas",
     noAnalysisYet: "No analysis yet",
+    extractedText: "Text extracted from the image",
   },
   imageEditor: {
     title: "Image editor",

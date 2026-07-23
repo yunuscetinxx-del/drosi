@@ -30,6 +30,8 @@ export function sortAnalysesNewestFirst(list: LessonAnalysisEntry[]): LessonAnal
 export function parseAnalysisContent(raw: Record<string, unknown>): LessonAnalysisContent {
   const arr = (key: string) =>
     Array.isArray(raw[key]) ? (raw[key] as unknown[]).map(String) : []
+  const text = (key: string) =>
+    Array.isArray(raw[key]) ? arr(key).join("\n") : raw[key] ? String(raw[key]) : undefined
 
   const vocabulary = Array.isArray(raw.vocabulary)
     ? (raw.vocabulary as Array<{ term?: string; meaning?: string }>)
@@ -51,6 +53,7 @@ export function parseAnalysisContent(raw: Record<string, unknown>): LessonAnalys
     : undefined
 
   return {
+    visibleText: text("visibleText"),
     description: String(raw.description ?? ""),
     keyElements: arr("keyElements"),
     studyNotes: arr("studyNotes"),

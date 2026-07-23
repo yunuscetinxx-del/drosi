@@ -467,6 +467,7 @@ export const messages = {
     addToLessonWithAnalysis: "إضافة الصورة للدرس مع التحليل",
     dialogHint: "اكتب ما تريد من التحليل — مثلاً: لخّص المخطط، ركّز على المعادلات، اشرح للمبتدئين",
     noAnalysisYet: "لم يُجرَ تحليل بعد",
+    extractedText: "النص المستخرج من الصورة",
   },
   imageEditor: {
     title: "محرر الصورة",

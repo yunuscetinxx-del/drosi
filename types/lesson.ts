@@ -79,6 +79,7 @@ export interface ImageAnnotation {
 
 export interface ImageAIAnalysis {
   description: string
+  visibleText?: string
   keyElements: string[]
   studyNotes: string[]
   relatedConcepts: string[]
