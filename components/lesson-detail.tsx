@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { AiImageNote, Lesson, ImageAnnotation, ImageAIAnalysis } from "@/types/lesson"
+import { useState, useEffect } from "react"
+import { AiImageNote, Lesson, ImageAnnotation, ImageAIAnalysis, MindMapNode } from "@/types/lesson"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,12 +12,12 @@ import { Badge } from "@/components/ui/badge"
 import { ImageUploader } from "@/components/image-uploader"
 import { LessonAiWorkspace } from "@/components/lesson-ai-workspace"
 import { prependLessonNote } from "@/lib/lesson-notes"
-import { createEmptyMindMap } from "@/lib/mind-maps-utils"
+import { createEmptyMindMap, readActiveMindMapId, writeActiveMindMapId } from "@/lib/mind-maps-utils"
 import { getLessonAnalyses } from "@/lib/lesson-analysis"
 import { WordEditor } from "@/components/word-editor"
 import { LessonNotesPanel } from "@/components/lesson-notes-panel"
 import { appendToLessonNotes, getLessonNotes } from "@/lib/lesson-notes"
-import { MindMapsEditor, type MindMapsEditorHandle } from "@/components/mind-maps-editor"
+import { MindMapsEditor } from "@/components/mind-maps-editor"
 import {
   FileText,
   FileType,
@@ -66,7 +66,6 @@ export function LessonDetail({
   readOnly = false,
 }: LessonDetailProps) {
   const { t, dir, isRtl } = useTranslations()
-  const mindMapsEditorRef = useRef<MindMapsEditorHandle>(null)
   const mindMaps = lesson.mindMaps ?? []
   const [newKeyPoint, setNewKeyPoint] = useState("")
   const [sectionsOpen, setSectionsOpen] = useState(true)
@@ -123,6 +122,31 @@ export function LessonDetail({
 
   const handleAddToNotes = (text: string) => {
     onUpdate(lesson.id, { lessonNotes: appendToLessonNotes(lesson, text) })
+  }
+
+  const handleAddToActiveMindMap = (nodes: Omit<MindMapNode, "id">[]) => {
+    if (nodes.length === 0 || readOnly) return
+    const activeMapId = readActiveMindMapId(lesson.id)
+    const targetMap = mindMaps.find((map) => map.id === activeMapId) ?? mindMaps[0]
+    const nodesWithIds = nodes.map((node) => ({ ...node, id: crypto.randomUUID() }))
+
+    if (!targetMap) {
+      const map = createEmptyMindMap("خريطة شرح الذكاء الاصطناعي")
+      onUpdate(lesson.id, {
+        mindMaps: [{ ...map, nodes: nodesWithIds, updatedAt: new Date() }],
+      })
+      writeActiveMindMapId(lesson.id, map.id)
+      return
+    }
+
+    onUpdate(lesson.id, {
+      mindMaps: mindMaps.map((map) =>
+        map.id === targetMap.id
+          ? { ...map, nodes: [...map.nodes, ...nodesWithIds], saved: true, updatedAt: new Date() }
+          : map
+      ),
+    })
+    writeActiveMindMapId(lesson.id, targetMap.id)
   }
 
   return (
@@ -440,7 +464,6 @@ export function LessonDetail({
             className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden p-0 outline-none data-[state=inactive]:hidden sm:p-0"
           >
             <MindMapsEditor
-              ref={mindMapsEditorRef}
               lessonId={lesson.id}
               lessonTitle={lesson.title}
               lessonSubject={lesson.subject}
@@ -498,7 +521,7 @@ export function LessonDetail({
               onAddToActiveMindMap={
                 readOnly
                   ? () => {}
-                  : (nodes) => mindMapsEditorRef.current?.addNodesToActive(nodes)
+                  : handleAddToActiveMindMap
               }
               onOpenMindMapTab={() => {
                 setActiveTab("mindmap")
