@@ -7,19 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
-import { ArrowUpRight, Check, Edit3, ImageIcon, Link2, Palette, PanelBottom, PanelRight, Save } from "lucide-react"
+import { ArrowUpRight, Check, Edit3, ImageIcon, Link2, PanelBottom, PanelRight, Save } from "lucide-react"
 import { useTranslations } from "@/components/locale-provider"
 
 const EMPTY_NOTE: AiImageNote = { content: "", layout: "below", links: [] }
-
-const LINK_COLORS = [
-  { name: "Yellow", value: "#fef08a" },
-  { name: "Green", value: "#bbf7d0" },
-  { name: "Blue", value: "#bfdbfe" },
-  { name: "Pink", value: "#fbcfe8" },
-  { name: "Orange", value: "#fed7aa" },
-  { name: "Purple", value: "#ddd6fe" },
-]
 
 interface AiImageNotesPanelProps {
   images: LessonImage[]
@@ -41,7 +32,6 @@ export function AiImageNotesPanel({
   const { t } = useTranslations()
   const [note, setNote] = useState<AiImageNote>(savedNote ?? EMPTY_NOTE)
   const [target, setTarget] = useState("")
-  const [linkColor, setLinkColor] = useState(LINK_COLORS[0].value)
   const [isEditing, setIsEditing] = useState(!readOnly && !savedNote?.content)
   const [activeLinkId, setActiveLinkId] = useState<string | null>(null)
   const [imageDimensions, setImageDimensions] = useState<Record<string, { width: number; height: number }>>({})
@@ -96,7 +86,15 @@ export function AiImageNotesPanel({
     const end = textarea.selectionEnd
     if (start === end) return
     const [imageId, annotationId] = target.split(":")
-    const newLink: AiImageNoteLink = { id: crypto.randomUUID(), start, end, imageId, annotationId, color: linkColor }
+    const annotation = annotationTargets.find((item) => item.value === target)?.annotation
+    const newLink: AiImageNoteLink = {
+      id: crypto.randomUUID(),
+      start,
+      end,
+      imageId,
+      annotationId,
+      color: annotation?.color,
+    }
     const next: AiImageNote = {
       ...note,
       links: [
@@ -114,6 +112,9 @@ export function AiImageNotesPanel({
     for (const link of [...note.links].sort((a, b) => a.start - b.start)) {
       if (link.start > cursor) parts.push(note.content.slice(cursor, link.start))
       const linkedText = note.content.slice(link.start, link.end)
+      const markerColor = annotationTargets.find(
+        (item) => item.value === `${link.imageId}:${link.annotationId}`
+      )?.annotation.color ?? link.color ?? "#fef08a"
       parts.push(
         <mark
           key={link.id}
@@ -121,7 +122,7 @@ export function AiImageNotesPanel({
             "cursor-pointer rounded px-0.5 underline decoration-2 underline-offset-2 transition-opacity",
             activeLinkId === link.id && "ring-2 ring-primary/40"
           )}
-          style={{ backgroundColor: link.color ?? LINK_COLORS[0].value }}
+          style={{ backgroundColor: markerColor }}
           onMouseEnter={() => setActiveLinkId(link.id)}
           onMouseLeave={() => setActiveLinkId(null)}
           onFocus={() => setActiveLinkId(link.id)}
@@ -148,7 +149,7 @@ export function AiImageNotesPanel({
     <div className="min-w-0 space-y-3">
       {isEditing && !readOnly && (
         <>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="max-w-md space-y-1">
             <div className="space-y-1">
               <Label className="text-xs">{t("aiImageNotes.marker")}</Label>
               <Select value={target} onValueChange={setTarget}>
@@ -157,21 +158,6 @@ export function AiImageNotesPanel({
                   {annotationTargets.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="flex items-center gap-1 text-xs"><Palette className="h-3.5 w-3.5" />{t("aiImageNotes.highlightColor")}</Label>
-              <div className="flex h-9 items-center gap-1 rounded-md border px-2">
-                {LINK_COLORS.map((color) => (
-                  <button
-                    key={color.value}
-                    type="button"
-                    className={cn("h-5 w-5 rounded-full border-2", linkColor === color.value ? "border-foreground" : "border-transparent")}
-                    style={{ backgroundColor: color.value }}
-                    title={color.name}
-                    onClick={() => setLinkColor(color.value)}
-                  />
-                ))}
-              </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
