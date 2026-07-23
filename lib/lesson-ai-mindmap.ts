@@ -4,6 +4,60 @@ import { notePreviewText } from "@/lib/lesson-note-content"
 import type { Lesson, MindMapNode } from "@/types/lesson"
 import type { ChatSourceScope, LessonAnalysisEntry } from "@/types/lesson-analysis"
 
+export type AiMindMapPlan = {
+  title?: string
+  categories?: Array<{ title?: string; note?: string; items?: Array<{ text?: string; note?: string }> }>
+}
+
+export function buildMindMapNodesFromAiPlan(plan: AiMindMapPlan, fallbackTitle: string): MindMapNode[] {
+  const centerId = crypto.randomUUID()
+  const categories = (plan.categories ?? []).filter((category) => category.title?.trim()).slice(0, 6)
+  if (!categories.length) return []
+
+  const nodes: MindMapNode[] = [{
+    id: centerId,
+    text: plan.title?.trim() || fallbackTitle,
+    x: 616,
+    y: 374,
+    parentId: null,
+    color: "#fef08a",
+    role: "main",
+    note: "خريطة ذهنية مولدة من تحليل الدرس بالذكاء الاصطناعي.",
+  }]
+
+  categories.forEach((category, categoryIndex) => {
+    const angle = (categoryIndex / categories.length) * Math.PI * 2 - Math.PI / 2
+    const categoryId = crypto.randomUUID()
+    const x = 700 + Math.cos(angle) * 250
+    const y = 400 + Math.sin(angle) * 180
+    nodes.push({
+      id: categoryId,
+      text: category.title!.trim(),
+      x: x - 72,
+      y: y - 20,
+      parentId: centerId,
+      color: ["#bbf7d0", "#bfdbfe", "#fbcfe8", "#fed7aa", "#ddd6fe", "#ccfbf1"][categoryIndex],
+      role: "branch",
+      note: category.note?.trim() || "",
+    })
+
+    ;(category.items ?? []).filter((item) => item.text?.trim()).slice(0, 6).forEach((item, itemIndex) => {
+      const offset = (itemIndex - ((category.items?.length ?? 1) - 1) / 2) * 58
+      nodes.push({
+        id: crypto.randomUUID(),
+        text: item.text!.trim(),
+        x: x + Math.cos(angle) * 165 - 60,
+        y: y + Math.sin(angle) * 105 + offset - 17,
+        parentId: categoryId,
+        color: "#ffffff",
+        role: "branch",
+        note: item.note?.trim() || "",
+      })
+    })
+  })
+  return nodes
+}
+
 export function collectMindMapBranchesFromSources(
   lesson: Lesson,
   scope: ChatSourceScope,

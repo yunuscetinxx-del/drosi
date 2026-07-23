@@ -14,7 +14,7 @@ import {
   sortAnalysesNewestFirst,
 } from "@/lib/lesson-analysis"
 import { buildChatContextFromLesson, countActiveSources } from "@/lib/lesson-chat-context"
-import { buildMindMapNodesFromSources } from "@/lib/lesson-ai-mindmap"
+import { buildMindMapNodesFromAiPlan, buildMindMapNodesFromSources, type AiMindMapPlan } from "@/lib/lesson-ai-mindmap"
 import { requestImageAnalysis, requestLessonChat } from "@/lib/analyze-image-client"
 import { getLessonNotes } from "@/lib/lesson-notes"
 import { Button } from "@/components/ui/button"
@@ -89,6 +89,7 @@ export function LessonAiWorkspace({
   const [error, setError] = useState<string | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(threads[0]?.id ?? null)
   const [mindMapPromptOpen, setMindMapPromptOpen] = useState(false)
+  const [creatingAiMindMap, setCreatingAiMindMap] = useState(false)
 
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? threads[0] ?? null
   const scope: ChatSourceScope = activeThread?.sourceScope ?? emptyChatSourceScope()
@@ -268,6 +269,29 @@ export function LessonAiWorkspace({
     onOpenMindMapTab?.()
   }
 
+  const createAiMindMapForLesson = async () => {
+    if (readOnly) return
+    setCreatingAiMindMap(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/lesson-mindmap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lesson }),
+      })
+      const data = (await response.json()) as { plan?: AiMindMapPlan; error?: string }
+      if (!response.ok || !data.plan) throw new Error(data.error ?? "تعذّر إنشاء الخريطة")
+      const nodes = buildMindMapNodesFromAiPlan(data.plan, lesson.title)
+      if (!nodes.length) throw new Error("لم ينتج الذكاء عقداً كافية للخريطة")
+      onCreateMindMap(data.plan.title?.trim() || `${lesson.title} — Deutsch B1`, nodes)
+      onOpenMindMapTab?.()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "تعذّر إنشاء الخريطة")
+    } finally {
+      setCreatingAiMindMap(false)
+    }
+  }
+
   const sourceCount = countActiveSources(scope)
 
   return (
@@ -408,6 +432,15 @@ export function LessonAiWorkspace({
             <Badge variant="secondary">{sourceCount} {t("aiWorkspace.sourcesActive")}</Badge>
             {!readOnly && (
               <>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={creatingAiMindMap}
+                  onClick={() => void createAiMindMapForLesson()}
+                >
+                  {creatingAiMindMap ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Network className="h-4 w-4 ml-1" />}
+                  تحليل الدرس وإنشاء خريطة
+                </Button>
                 <Button type="button" size="sm" variant="outline" onClick={handleNewChat}>
                   <MessageSquarePlus className="h-4 w-4 ml-1" />
                   {t("aiWorkspace.newChat")}

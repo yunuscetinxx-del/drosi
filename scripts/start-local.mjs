@@ -11,6 +11,7 @@ const root = path.resolve(__dirname, "..")
 const PORT = process.env.PORT || "3000"
 const SERVER_URL = `http://localhost:${PORT}`
 const isWindows = process.platform === "win32"
+const OLLAMA_URL = "http://127.0.0.1:11434/api/tags"
 
 function openBrowser(url) {
   if (isWindows) {
@@ -35,10 +36,39 @@ async function waitForServer(url, maxAttempts = 90) {
   return false
 }
 
+async function ensureOllama() {
+  try {
+    const response = await fetch(OLLAMA_URL, { signal: AbortSignal.timeout(700) })
+    if (response.ok) {
+      console.log("[drosi] Ollama المحلي جاهز.")
+      return
+    }
+  } catch {
+    /* Start the local service below. */
+  }
+
+  const localOllama = isWindows
+    ? path.join(process.env.LOCALAPPDATA || "", "Programs", "Ollama", "ollama.exe")
+    : "ollama"
+  console.log("[drosi] جارٍ تشغيل Ollama المحلي...")
+  try {
+    const ollama = spawn(localOllama, ["serve"], {
+      stdio: "ignore",
+      detached: true,
+      windowsHide: true,
+    })
+    ollama.unref()
+  } catch {
+    console.log("[drosi] لم يُعثر على Ollama. ستعمل ميزات الذكاء عند تشغيله لاحقاً.")
+  }
+}
+
 console.log("========================================")
 console.log("  Drosi — تشغيل الموقع محلياً")
 console.log("========================================")
 console.log(`[drosi] جارٍ تشغيل الخادم على ${SERVER_URL} ...`)
+
+void ensureOllama()
 
 // على ويندوز: npm هو ملف npm.cmd، ويحتاج shell:true لتفادي خطأ "spawn EINVAL"
 // عند التشغيل من اختصار سطح المكتب. نمرّر الأمر كسلسلة نصية واحدة مع shell:true
