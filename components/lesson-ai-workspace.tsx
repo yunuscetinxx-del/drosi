@@ -2,50 +2,28 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Lesson, MindMapNode } from "@/types/lesson"
-import type { ChatSourceScope, LessonAnalysisEntry, LessonChatThread } from "@/types/lesson-analysis"
+import type { ChatSourceScope, LessonAnalysisContent, LessonChatThread } from "@/types/lesson-analysis"
 import { emptyChatSourceScope } from "@/types/lesson-analysis"
 import {
   appendChatMessage,
   createAnalysisEntry,
   createChatThread,
-  formatAnalysisForNotes,
   getLessonAnalyses,
   getLessonChatThreads,
   sortAnalysesNewestFirst,
 } from "@/lib/lesson-analysis"
-import { buildChatContextFromLesson, countActiveSources } from "@/lib/lesson-chat-context"
-import { buildMindMapNodesFromAiPlan, buildMindMapNodesFromSources, type AiMindMapPlan } from "@/lib/lesson-ai-mindmap"
+import { buildChatContextFromLesson } from "@/lib/lesson-chat-context"
+import { buildMindMapNodesFromAiPlan, type AiMindMapPlan } from "@/lib/lesson-ai-mindmap"
 import { requestImageAnalysis, requestLessonChat } from "@/lib/analyze-image-client"
-import { getLessonNotes } from "@/lib/lesson-notes"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { useTranslations } from "@/components/locale-provider"
 import { cn } from "@/lib/utils"
 import {
-  BookOpen,
-  FileText,
-  History,
-  ImageIcon,
   Loader2,
-  MessageSquarePlus,
   Network,
   Send,
-  Sparkles,
   StickyNote,
   Upload,
 } from "lucide-react"
@@ -75,20 +53,16 @@ export function LessonAiWorkspace({
 
   const analyses = useMemo(() => sortAnalysesNewestFirst(getLessonAnalyses(lesson)), [lesson])
   const threads = useMemo(() => getLessonChatThreads(lesson), [lesson])
-  const notes = useMemo(() => getLessonNotes(lesson), [lesson])
-  const wordPages = lesson.wordPages ?? []
 
   const [subjectMode] = useState<"auto" | "manual">("manual")
   const [subject] = useState("Deutsch")
   const [level] = useState("B1")
-  const [instructions, setInstructions] = useState("")
   const [uploadPreview, setUploadPreview] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(threads[0]?.id ?? null)
-  const [mindMapPromptOpen, setMindMapPromptOpen] = useState(false)
   const [creatingAiMindMap, setCreatingAiMindMap] = useState(false)
 
   const activeThread = threads.find((t) => t.id === activeThreadId) ?? threads[0] ?? null
@@ -109,42 +83,6 @@ export function LessonAiWorkspace({
     [onUpdateLesson]
   )
 
-  const updateScope = useCallback(
-    (patch: Partial<ChatSourceScope>) => {
-      if (!activeThread || readOnly) return
-      const nextScope: ChatSourceScope = {
-        analysisIds: patch.analysisIds ?? scope.analysisIds,
-        imageIds: patch.imageIds ?? scope.imageIds,
-        noteIds: patch.noteIds ?? scope.noteIds,
-        wordPageIds: patch.wordPageIds ?? scope.wordPageIds,
-      }
-      persistThreads(
-        threads.map((t) =>
-          t.id === activeThread.id
-            ? { ...t, sourceScope: nextScope, updatedAt: new Date() }
-            : t
-        )
-      )
-    },
-    [activeThread, readOnly, scope, threads, persistThreads]
-  )
-
-  const toggleId = (key: keyof ChatSourceScope, id: string) => {
-    const list = scope[key]
-    const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
-    updateScope({ [key]: next })
-  }
-
-  const handleNewChat = () => {
-    const thread = createChatThread({
-      title: `${t("aiWorkspace.newChat")} ${threads.length + 1}`,
-      sourceScope: { ...scope },
-    })
-    persistThreads([thread, ...threads])
-    setActiveThreadId(thread.id)
-    setChatInput("")
-  }
-
   const handleUpload = (file: File) => {
     if (!file.type.startsWith("image/")) return
     const reader = new FileReader()
@@ -157,12 +95,12 @@ export function LessonAiWorkspace({
     reader.readAsDataURL(file)
   }
 
-  const handleAnalyzeUpload = async () => {
+  const handleAnalyzeUpload = async (prompt = "") => {
     if (!uploadPreview) return
     setAnalyzing(true)
     setError(null)
     try {
-      const res = await requestImageAnalysis(uploadPreview, instructions || "Describe the image in German at B1 level.", {
+      const res = await requestImageAnalysis(uploadPreview, prompt || "Describe the image in German at B1 level, translate important text into Arabic, and explain any grammar with an example.", {
         mode: "school",
         subject,
         level,
@@ -199,13 +137,15 @@ export function LessonAiWorkspace({
         },
       })
 
+      const imageMessage = appendChatMessage(thread, "user", `📷 ${prompt || "Bitte beschreibe dieses Bild auf Deutsch B1."}`)
+      const withAnalysis = appendChatMessage(imageMessage, "assistant", formatImageStudyReply(res.content))
+
       onUpdateLesson({
         lessonAnalyses: [entry, ...analyses],
-        lessonChatThreads: [thread, ...threads],
+        lessonChatThreads: [withAnalysis, ...threads],
       })
-      setActiveThreadId(thread.id)
+      setActiveThreadId(withAnalysis.id)
       setUploadPreview(null)
-      setInstructions("")
     } catch {
       setError(t("aiAnalysis.errorConnection"))
     } finally {
@@ -257,19 +197,6 @@ export function LessonAiWorkspace({
     persistThreads(list.map((t) => (t.id === withReply.id ? withReply : t)))
   }
 
-  const applyMindMap = (mode: "new" | "active") => {
-    const nodes = buildMindMapNodesFromSources(lesson.title, lesson, scope, analyses)
-    if (nodes.length === 0) return
-    const title = `${lesson.title} — ${t("aiWorkspace.mindMapFromSources")}`
-    if (mode === "new") {
-      onCreateMindMap(title, nodes)
-    } else {
-      onAddToActiveMindMap(nodes.map(({ id: _id, ...rest }) => rest))
-    }
-    setMindMapPromptOpen(false)
-    onOpenMindMapTab?.()
-  }
-
   const createAiMindMapForLesson = async () => {
     if (readOnly) return
     setCreatingAiMindMap(true)
@@ -293,95 +220,28 @@ export function LessonAiWorkspace({
     }
   }
 
-  const sourceCount = countActiveSources(scope)
+  const addReplyToMindMap = (content: string) => {
+    const title = content.replace(/\s+/g, " ").slice(0, 52).trim() || "شرح الذكاء الاصطناعي"
+    onAddToActiveMindMap([{
+      text: title,
+      note: content,
+      x: 760,
+      y: 430,
+      parentId: null,
+      color: "#bfdbfe",
+      role: "branch",
+    }])
+    onOpenMindMapTab?.()
+  }
+
+  const activeAnalysis = activeThread?.analysisId
+    ? analyses.find((analysis) => analysis.id === activeThread.analysisId)
+    : undefined
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* مصادر */}
-        <aside className="flex w-full shrink-0 flex-col border-b border-border lg:w-72 lg:border-b-0 lg:border-e">
-          <div className="border-b border-border px-3 py-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary" />
-              {t("aiWorkspace.sources")}
-            </h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{t("aiWorkspace.sourcesHint")}</p>
-          </div>
-          <ScrollArea className="min-h-0 flex-1 max-h-[40vh] lg:max-h-none">
-            <div className="space-y-4 p-3">
-              <SourceSection title={t("aiWorkspace.registry")} icon={<History className="h-3.5 w-3.5" />}>
-                {analyses.length === 0 ? (
-                  <p className="text-xs text-muted-foreground px-1">{t("aiHub.noAnalyses")}</p>
-                ) : (
-                  analyses.map((a) => (
-                    <SourceRow
-                      key={a.id}
-                      checked={scope.analysisIds.includes(a.id)}
-                      disabled={readOnly}
-                      onCheckedChange={() => toggleId("analysisIds", a.id)}
-                      label={a.title}
-                      sub={a.summary.slice(0, 60)}
-                    />
-                  ))
-                )}
-              </SourceSection>
-
-              <SourceSection title={t("lesson.tabImages")} icon={<ImageIcon className="h-3.5 w-3.5" />}>
-                {lesson.images.length === 0 ? (
-                  <p className="text-xs text-muted-foreground px-1">{t("imageAi.noLessonImages")}</p>
-                ) : (
-                  lesson.images.map((img, i) => (
-                    <SourceRow
-                      key={img.id}
-                      checked={scope.imageIds.includes(img.id)}
-                      disabled={readOnly}
-                      onCheckedChange={() => toggleId("imageIds", img.id)}
-                      label={t("imageAi.imageOption", { n: i + 1 })}
-                      sub={img.aiAnalysis ? t("imageAi.alreadyAnalyzed") : undefined}
-                    />
-                  ))
-                )}
-              </SourceSection>
-
-              <SourceSection title={t("lesson.tabNotes")} icon={<StickyNote className="h-3.5 w-3.5" />}>
-                {notes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground px-1">{t("lesson.notesEmpty")}</p>
-                ) : (
-                  notes.map((n) => (
-                    <SourceRow
-                      key={n.id}
-                      checked={scope.noteIds.includes(n.id)}
-                      disabled={readOnly}
-                      onCheckedChange={() => toggleId("noteIds", n.id)}
-                      label={n.title || t("lesson.untitledNote")}
-                    />
-                  ))
-                )}
-              </SourceSection>
-
-              <SourceSection title={t("lesson.tabWord")} icon={<FileText className="h-3.5 w-3.5" />}>
-                {wordPages.length === 0 ? (
-                  <p className="text-xs text-muted-foreground px-1">—</p>
-                ) : (
-                  wordPages.map((p) => (
-                    <SourceRow
-                      key={p.id}
-                      checked={scope.wordPageIds.includes(p.id)}
-                      disabled={readOnly}
-                      onCheckedChange={() => toggleId("wordPageIds", p.id)}
-                      label={p.title}
-                    />
-                  ))
-                )}
-              </SourceSection>
-            </div>
-          </ScrollArea>
-        </aside>
-
-        {/* شات + سجل */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex items-center gap-2 border-b border-border px-3 py-2 flex-wrap">
-            <Badge variant="secondary">{sourceCount} {t("aiWorkspace.sourcesActive")}</Badge>
             {!readOnly && (
               <>
                 <Button
@@ -393,57 +253,19 @@ export function LessonAiWorkspace({
                   {creatingAiMindMap ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Network className="h-4 w-4 ml-1" />}
                   تحليل الدرس وإنشاء خريطة
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={handleNewChat}>
-                  <MessageSquarePlus className="h-4 w-4 ml-1" />
-                  {t("aiWorkspace.newChat")}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={sourceCount === 0}
-                  onClick={() => setMindMapPromptOpen(true)}
-                >
-                  <Network className="h-4 w-4 ml-1" />
-                  {t("aiWorkspace.mindMapFromSources")}
-                </Button>
               </>
             )}
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-            {/* قائمة المحادثات */}
-            <div className="shrink-0 border-b border-border md:w-48 md:border-b-0 md:border-e">
-              <ScrollArea className="h-28 md:h-full max-h-32 md:max-h-none">
-                <div className="p-2 space-y-1">
-                  {threads.length === 0 ? (
-                    <p className="text-xs text-muted-foreground p-2">{t("aiWorkspace.noChats")}</p>
-                  ) : (
-                    threads.map((th) => (
-                      <button
-                        key={th.id}
-                        type="button"
-                        onClick={() => setActiveThreadId(th.id)}
-                        className={cn(
-                          "w-full rounded-md px-2 py-2 text-start text-xs transition-colors",
-                          activeThreadId === th.id
-                            ? "bg-primary/10 text-foreground font-medium"
-                            : "hover:bg-muted/60 text-muted-foreground"
-                        )}
-                      >
-                        <span className="line-clamp-2">{th.title}</span>
-                        <span className="text-[10px] opacity-60">{th.messages.length} رسالة</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* الرسائل */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
               <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-3 p-4">
+                  {activeAnalysis?.imageUrl && (
+                    <div className="max-w-[92%] overflow-hidden rounded-lg border bg-card">
+                      <img src={activeAnalysis.imageUrl} alt="الصورة المرفوعة للمناقشة" className="max-h-72 w-full object-contain bg-muted/30" />
+                      <p className="px-3 py-2 text-xs text-muted-foreground">صورة للمناقشة - Deutsch B1</p>
+                    </div>
+                  )}
                   {(activeThread?.messages ?? []).length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-12">
                       {t("aiWorkspace.chatEmpty")}
@@ -473,6 +295,16 @@ export function LessonAiWorkspace({
                             >
                               <StickyNote className="h-3 w-3 ml-1" />
                               {t("aiHub.addToNotes")}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => addReplyToMindMap(m.content)}
+                            >
+                              <Network className="h-3 w-3 ml-1" />
+                              إضافة إلى الخريطة
                             </Button>
                           </div>
                         )}
@@ -516,31 +348,34 @@ export function LessonAiWorkspace({
                         disabled={analyzing}
                       >
                         <Upload className="h-4 w-4 ml-1" />
-                        صورة للمناقشة - Deutsch B1
+                        أضف صورة للشات
                       </Button>
-                      <span className="text-xs text-muted-foreground">ارفع صورة، حلّلها، ثم ناقشها هنا.</span>
+                      <span className="text-xs text-muted-foreground">سيظهر التحليل والصورة هنا مباشرة.</span>
                     </div>
                     {uploadPreview && (
                       <div className="mt-2 flex gap-2 rounded-md border bg-background p-2">
                         <img src={uploadPreview} alt="صورة للدراسة" className="h-20 w-24 rounded border object-contain" />
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <Textarea
-                            value={instructions}
-                            onChange={(e) => setInstructions(e.target.value)}
-                            placeholder="Optional: Was möchtest du auf Deutsch B1 üben?"
-                            rows={2}
-                            className="text-xs"
-                            disabled={analyzing}
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={analyzing}
-                            onClick={() => void handleAnalyzeUpload()}
-                          >
-                            {analyzing ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Sparkles className="h-4 w-4 ml-1" />}
-                            {t("aiWorkspace.analyzeAndAdd")}
-                          </Button>
+                        <div className="min-w-0 flex-1">
+                          <p className="mb-2 text-xs text-muted-foreground">ماذا تريد أن يفعل الذكاء بالصورة؟</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              ["صف الصورة", "Beschreibe das Bild auf Deutsch B1. Übersetze wichtige Wörter ins Arabische."],
+                              ["حلّ المثال", "Löse die Aufgabe im Bild Schritt für Schritt. Erkläre die Lösung auf Deutsch B1 und übersetze sie ins Arabische."],
+                              ["اشرح القاعدة", "Erkläre die Grammatikregel im Bild auf Deutsch B1 mit einer arabischen Übersetzung und zwei Beispielen."],
+                            ].map(([label, prompt]) => (
+                              <Button
+                                key={label}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={analyzing}
+                                onClick={() => void handleAnalyzeUpload(prompt)}
+                              >
+                                {analyzing ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : null}
+                                {label}
+                              </Button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -566,99 +401,26 @@ export function LessonAiWorkspace({
               )}
             </div>
           </div>
-
-          {/* سجل الصفحات */}
-          <div className="hidden xl:block border-t border-border max-h-40 overflow-y-auto">
-            <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-              {t("aiWorkspace.pageRegistry")} ({analyses.length})
-            </div>
-            <div className="flex gap-2 overflow-x-auto px-3 pb-3">
-              {analyses.map((a: LessonAnalysisEntry) => (
-                <div
-                  key={a.id}
-                  className="shrink-0 w-56 rounded-lg border bg-card p-2 text-xs"
-                >
-                  <p className="font-semibold truncate">{a.title}</p>
-                  <p className="text-muted-foreground line-clamp-2 mt-1">{a.summary}</p>
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 mt-1 text-xs"
-                      onClick={() => onAddNote(a.title, formatAnalysisForNotes(a))}
-                    >
-                      {t("aiHub.addToNotes")}
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <AlertDialog open={mindMapPromptOpen} onOpenChange={setMindMapPromptOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("aiWorkspace.mindMapWhere")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("aiWorkspace.mindMapWhereDesc")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
-            <AlertDialogAction onClick={() => applyMindMap("new")}>
-              {t("aiWorkspace.newMindMap")}
-            </AlertDialogAction>
-            <AlertDialogAction onClick={() => applyMindMap("active")}>
-              {t("aiWorkspace.activeMindMap")}
-            </AlertDialogAction>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
 
-function SourceSection({
-  title,
-  icon,
-  children,
-}: {
-  title: string
-  icon: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 mb-2 px-1">
-        {icon}
-        {title}
-      </p>
-      <div className="space-y-1">{children}</div>
-    </div>
-  )
-}
+function formatImageStudyReply(content: LessonAnalysisContent): string {
+  const sections = [
+    content.description ? `**Beschreibung**\n${content.description}` : "",
+    content.visibleText && content.visibleText !== "Leer" ? `**Text im Bild**\n${content.visibleText}` : "",
+    content.vocabulary?.length
+      ? `**Wortschatz**\n${content.vocabulary.map((word) => `- ${word.term}: ${word.meaning}`).join("\n")}`
+      : "",
+    content.grammarTopics?.length ? `**Grammatik**\n${content.grammarTopics.map((topic) => `- ${topic}`).join("\n")}` : "",
+    content.exercises?.length
+      ? `**Übungen und Beispiele**\n${content.exercises.map((exercise) => {
+          const examples = exercise.sampleAnswers?.length ? `\nBeispiel: ${exercise.sampleAnswers.join(" | ")}` : ""
+          return `- ${exercise.title}: ${exercise.explanation}${examples}`
+        }).join("\n")}`
+      : "",
+    content.studyNotes?.length ? `**Lerntipp**\n${content.studyNotes.map((note) => `- ${note}`).join("\n")}` : "",
+  ].filter(Boolean)
 
-function SourceRow({
-  checked,
-  disabled,
-  onCheckedChange,
-  label,
-  sub,
-}: {
-  checked: boolean
-  disabled?: boolean
-  onCheckedChange: () => void
-  label: string
-  sub?: string
-}) {
-  return (
-    <label className="flex items-start gap-2 rounded-md px-1 py-1.5 hover:bg-muted/50 cursor-pointer">
-      <Checkbox checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} className="mt-0.5" />
-      <span className="min-w-0 flex-1">
-        <span className="text-xs font-medium block truncate">{label}</span>
-        {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
-      </span>
-    </label>
-  )
+  return sections.join("\n\n") || "Ich konnte aus dem Bild keine eindeutigen Lerninformationen lesen."
 }
