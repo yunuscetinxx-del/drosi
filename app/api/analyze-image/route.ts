@@ -92,7 +92,11 @@ export async function POST(req: NextRequest) {
         },
       ],
       credentials,
-      { maxTokens: isSchool ? 2000 : AI_MODEL_CONFIG.maxTokensImage, title: "Durusi - Analyzer" }
+      {
+        maxTokens: isSchool ? 2000 : AI_MODEL_CONFIG.maxTokensImage,
+        title: "Durusi - Analyzer",
+        json: true,
+      }
     )
 
     const fallback = {

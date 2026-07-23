@@ -58,7 +58,7 @@ export async function isOllamaModelAvailable(): Promise<boolean> {
 
 export async function callOllama(
   messages: ChatMessage[],
-  opts?: { maxTokens?: number; temperature?: number }
+  opts?: { maxTokens?: number; temperature?: number; json?: boolean }
 ): Promise<string> {
   const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
     method: "POST",
@@ -67,6 +67,7 @@ export async function callOllama(
       model: OLLAMA_MODEL,
       messages: await toOllamaMessages(messages),
       stream: false,
+      ...(opts?.json ? { format: "json" } : {}),
       options: {
         temperature: opts?.temperature ?? 0.7,
         num_predict: opts?.maxTokens ?? 2000,

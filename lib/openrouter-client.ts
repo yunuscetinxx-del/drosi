@@ -41,7 +41,16 @@ export async function callOpenRouter(
 export function parseJsonFromModel<T>(text: string, fallback: T): T {
   try {
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-    return JSON.parse(cleaned) as T
+    try {
+      return JSON.parse(cleaned) as T
+    } catch {
+      const firstBrace = cleaned.indexOf("{")
+      const lastBrace = cleaned.lastIndexOf("}")
+      if (firstBrace >= 0 && lastBrace > firstBrace) {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1)) as T
+      }
+      throw new Error("No JSON object in model response")
+    }
   } catch {
     return fallback
   }
