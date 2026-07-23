@@ -36,6 +36,7 @@ export function AiImageNotesPanel({
   const [activeLinkId, setActiveLinkId] = useState<string | null>(null)
   const [imageDimensions, setImageDimensions] = useState<Record<string, { width: number; height: number }>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorPreviewRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setNote(savedNote ?? EMPTY_NOTE)
@@ -173,16 +174,28 @@ export function AiImageNotesPanel({
         </>
       )}
 
-      <div className="min-h-24 whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm leading-relaxed">
+      <div className={cn("relative whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm leading-relaxed", isEditing && !readOnly ? "min-h-64" : "min-h-24")}>
         {isEditing && !readOnly ? (
-          <Textarea
-            ref={textareaRef}
-            value={note.content}
-            onChange={(event) => handleContentChange(event.target.value)}
-            placeholder={t("aiImageNotes.placeholder")}
-            rows={10}
-            className="min-h-24 resize-y border-0 bg-transparent p-0 text-sm leading-relaxed shadow-none focus-visible:ring-0"
-          />
+          <>
+            <div
+              ref={editorPreviewRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-3 overflow-hidden whitespace-pre-wrap text-sm leading-relaxed"
+            >
+              {note.content && linkedPreview()}
+            </div>
+            <Textarea
+              ref={textareaRef}
+              value={note.content}
+              onChange={(event) => handleContentChange(event.target.value)}
+              onScroll={(event) => {
+                if (editorPreviewRef.current) editorPreviewRef.current.scrollTop = event.currentTarget.scrollTop
+              }}
+              placeholder={t("aiImageNotes.placeholder")}
+              rows={10}
+              className="absolute inset-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] resize-none border-0 bg-transparent p-0 text-transparent caret-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 selection:bg-primary/30"
+            />
+          </>
         ) : note.content ? linkedPreview() : <span className="text-muted-foreground">{t("aiImageNotes.previewEmpty")}</span>}
       </div>
     </div>
