@@ -309,55 +309,6 @@ export function LessonAiWorkspace({
           </div>
           <ScrollArea className="min-h-0 flex-1 max-h-[40vh] lg:max-h-none">
             <div className="space-y-4 p-3">
-              {!readOnly && (
-                <div className="space-y-2 rounded-lg border border-dashed p-3">
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) handleUpload(f)
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <Upload className="h-4 w-4 ml-1" />
-                    {t("aiWorkspace.uploadPage")} - Deutsch B1
-                  </Button>
-                  {uploadPreview && (
-                    <img src={uploadPreview} alt="" className="max-h-24 rounded border object-contain w-full" />
-                  )}
-                  <Textarea
-                    value={instructions}
-                    onChange={(e) => setInstructions(e.target.value)}
-                    placeholder="Optional: Was möchtest du auf Deutsch B1 üben?"
-                    rows={2}
-                    className="text-xs"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="w-full"
-                    disabled={!uploadPreview || analyzing}
-                    onClick={() => void handleAnalyzeUpload()}
-                  >
-                    {analyzing ? (
-                      <Loader2 className="h-4 w-4 ml-1 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4 ml-1" />
-                    )}
-                    {t("aiWorkspace.analyzeAndAdd")}
-                  </Button>
-                </div>
-              )}
-
               <SourceSection title={t("aiWorkspace.registry")} icon={<History className="h-3.5 w-3.5" />}>
                 {analyses.length === 0 ? (
                   <p className="text-xs text-muted-foreground px-1">{t("aiHub.noAnalyses")}</p>
@@ -543,22 +494,74 @@ export function LessonAiWorkspace({
               )}
 
               {!readOnly && (
-                <div className="flex gap-2 border-t border-border p-3">
-                  <Input
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={t("aiWorkspace.chatPlaceholder")}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        void handleSendChat()
-                      }
-                    }}
-                    disabled={chatLoading}
-                  />
-                  <Button type="button" onClick={() => void handleSendChat()} disabled={chatLoading}>
-                    <Send className="h-4 w-4" />
-                  </Button>
+                <div className="border-t border-border">
+                  <div className="border-b bg-muted/30 px-3 py-2">
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUpload(file)
+                        e.target.value = ""
+                      }}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={analyzing}
+                      >
+                        <Upload className="h-4 w-4 ml-1" />
+                        صورة للمناقشة - Deutsch B1
+                      </Button>
+                      <span className="text-xs text-muted-foreground">ارفع صورة، حلّلها، ثم ناقشها هنا.</span>
+                    </div>
+                    {uploadPreview && (
+                      <div className="mt-2 flex gap-2 rounded-md border bg-background p-2">
+                        <img src={uploadPreview} alt="صورة للدراسة" className="h-20 w-24 rounded border object-contain" />
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Textarea
+                            value={instructions}
+                            onChange={(e) => setInstructions(e.target.value)}
+                            placeholder="Optional: Was möchtest du auf Deutsch B1 üben?"
+                            rows={2}
+                            className="text-xs"
+                            disabled={analyzing}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={analyzing}
+                            onClick={() => void handleAnalyzeUpload()}
+                          >
+                            {analyzing ? <Loader2 className="h-4 w-4 ml-1 animate-spin" /> : <Sparkles className="h-4 w-4 ml-1" />}
+                            {t("aiWorkspace.analyzeAndAdd")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 p-3">
+                    <Input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder={t("aiWorkspace.chatPlaceholder")}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault()
+                          void handleSendChat()
+                        }
+                      }}
+                      disabled={chatLoading}
+                    />
+                    <Button type="button" onClick={() => void handleSendChat()} disabled={chatLoading}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
